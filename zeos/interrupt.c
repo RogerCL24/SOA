@@ -15,11 +15,11 @@ Register    idtR;
 char char_map[] =
 {
   '\0','\0','1','2','3','4','5','6',
-  '7','8','9','0','\'','¡','\0','\0',
+  '7','8','9','0','\'','ï¿½','\0','\0',
   'q','w','e','r','t','y','u','i',
   'o','p','`','+','\0','\0','a','s',
-  'd','f','g','h','j','k','l','ñ',
-  '\0','º','\0','ç','z','x','c','v',
+  'd','f','g','h','j','k','l','ï¿½',
+  '\0','ï¿½','\0','ï¿½','z','x','c','v',
   'b','n','m',',','.','-','\0','*',
   '\0','\0','\0','\0','\0','\0','\0','\0',
   '\0','\0','\0','\0','\0','\0','\0','7',
@@ -73,6 +73,10 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+void keyboard_handler();
+void clock_handler();
+void system_call_handler();
+void my_page_fault_handler();
 
 void setIdt()
 {
@@ -83,7 +87,40 @@ void setIdt()
   set_handlers();
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
+  setInterruptHandler(33, keyboard_handler, 0);
+  setInterruptHandler(32, clock_handler, 0);
+  setInterruptHandler(14, my_page_fault_handler, 0);
+
+  setInterruptHandler(0x80, system_call_handler, 3);
 
   set_idt_reg(&idtR);
 }
 
+
+void keyboard_routine() {
+  //Lee caracter y si es make/break.
+  unsigned char port_info = inb(0x60);   
+
+  //Bit 7: 0=Make / 1=Break  --> Uso i_break para q concuerden 1 o 0.
+  //Bit 0..6: Character
+  int is_break = port_info & 0x80;
+
+  //Si es make imprime el caracter usando char_map.
+  if (is_break == 0) {
+    char c = char_map[port_info & 0x7F];
+    printc_xy(0, 0, c);
+  } 
+}
+
+void clock_routine() {
+  zeos_show_clock();
+}
+
+void my_page_fault_routine(int aux, int addr) {
+  printk("Process generates a PAGE FAULT exception at EIP: ");
+  char buff[20];
+  itoa(addr, buff);
+  printk(buff);
+  printk("\n");
+  while(1);
+}

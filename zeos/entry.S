@@ -4,6 +4,7 @@
 
 #include <asm.h>
 #include <segment.h>
+#include <errno.h>
 
 
 /**************************************************/
@@ -51,3 +52,93 @@
       movl %edx, %ds;           \
       movl %edx, %es
 
+#define RESTORE_ALL \
+      popl %edx; \
+      popl %ecx; \
+      popl %ebx; \
+      popl %esi; \
+      popl %edi; \
+      popl %ebp; \
+      popl %eax; \
+      popl %ds; \
+      popl %es; \
+      popl %fs; \
+      popl %gs; 
+
+#define RESTORE_NOEAX \
+      popl %edx; \
+      popl %ecx; \
+      popl %ebx; \
+      popl %esi; \
+      popl %edi; \
+      popl %ebp; \
+      addl $4, %esp; \
+      popl %ds; \
+      popl %es; \
+      popl %fs; \
+      popl %gs;      
+      
+#define EOI \
+      movb $0x20, %al; \
+      outb %al, $0x20; \
+
+ENTRY(keyboard_handler)
+      SAVE_ALL
+      EOI
+      call keyboard_routine
+      RESTORE_ALL
+      iret 
+
+ENTRY(clock_handler)
+      SAVE_ALL
+      EOI
+      call clock_routine
+      RESTORE_ALL
+      iret
+
+ENTRY(my_page_fault_handler)
+      call my_page_fault_routine
+
+ENTRY(system_call_handler)
+      # Guarda el context.
+      SAVE_ALL
+
+      # Comprova si syscall es valida (0 > Syscall < MAX_SYSCALL)
+      cmpl $0, %eax
+      jl is_error
+      cmpl $MAX_SYSCALL, %eax
+      jg is_error
+      
+      #S'executa si no hi ha error
+      call *sys_call_table(,%eax, 0x04);
+      jmp end
+
+is_error:
+      #Posa el codi correponent a %eax
+      movl $-ENOSYS, %eax 
+end:
+      RESTORE_NOEAX
+      iret
+
+ENTRY(syscall_handler_sysenter)
+      push $__USER_DS
+      push %EBP // User stack address
+      pushfl
+      push $__USER_CS
+      push 4(%EBP) // User return address
+      SAVE_ALL
+      cmpl $0, %EAX
+      jl sysenter_err
+      cmpl $MAX_SYSCALL, %EAX
+      jg sysenter_err
+      call *sys_call_table(, %EAX, 0x04)
+      jmp sysenter_fin
+      sysenter_err:
+      movl $-ENOSYS, %EAX
+      sysenter_fin:
+      movl %EAX, 0x18(%ESP)
+      RESTORE_ALL
+      movl (%ESP), %EDX // Return address
+      movl 12(%ESP), %ECX // User stack address
+      sti // Enable interrupts again
+      sysexit

@@ -13,6 +13,8 @@
 
 #include <sched.h>
 
+#include <errno.h>
+
 #define LECTURA 0
 #define ESCRIPTURA 1
 
@@ -44,4 +46,40 @@ int sys_fork()
 
 void sys_exit()
 {  
+}
+
+#define BUFF_SIZE 256
+char buffer_sys[BUFF_SIZE];
+
+int sys_write(int fd, char *buffer, int size) {
+  //Comprova el canal.
+  int ret = check_fd(fd, ESCRIPTURA);
+  if (ret < 0) return ret;
+
+  //Comprova buffer.
+  if(buffer == NULL) return -EFAULT;  /* Bad address */
+
+  //Comprova size.
+  if (size < 0) return -EINVAL;   /* Invalid argument */
+
+  int toWrite = size;         //Bytes que falten per escriure.
+  char *newPointer = buffer;  //Punter auxiliar per apuntar a la zona del buffer on comencarem a escriure en cada iteracio.
+
+  //Si no cap tot string en el buffer va poc a poc.
+  while (toWrite > BUFF_SIZE) {
+    copy_from_user(newPointer, buffer_sys, BUFF_SIZE);
+    int bytes_written = sys_write_console(newPointer, BUFF_SIZE);
+
+    newPointer += bytes_written;
+    toWrite -= bytes_written;
+  }
+
+  //Quan ja cap tot el que queda del string al buffer escriu fins al final del string.
+  copy_from_user(newPointer, buffer_sys, toWrite);
+  int bytes_written = sys_write_console(newPointer, toWrite);
+
+  toWrite -= bytes_written;
+
+  //Retorna el N de bytes escrits, en principi = size pero por si acaso.
+  return size - toWrite;
 }
