@@ -6,11 +6,14 @@
 #include <segment.h>
 #include <hardware.h>
 #include <io.h>
+#include <libc.h>
 
 #include <zeos_interrupt.h>
 
 Gate idt[IDT_ENTRIES];
 Register    idtR;
+
+int zeos_ticks = 0;
 
 char char_map[] =
 {
@@ -73,10 +76,15 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+void my_page_fault_handler();
+
 void keyboard_handler();
 void clock_handler();
+
 void system_call_handler();
-void my_page_fault_handler();
+
+void syscall_handler_sysenter();
+void writeMSR(unsigned long msr, unsigned long valor);
 
 void setIdt()
 {
@@ -87,11 +95,22 @@ void setIdt()
   set_handlers();
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
-  setInterruptHandler(33, keyboard_handler, 0);
-  setInterruptHandler(32, clock_handler, 0);
+
+  //Excepciones
   setInterruptHandler(14, my_page_fault_handler, 0);
 
+  //Interrupciones
+  setInterruptHandler(33, keyboard_handler, 0);
+  setInterruptHandler(32, clock_handler, 0);
+
+  //Syscalls por interrupcion
   setInterruptHandler(0x80, system_call_handler, 3);
+
+  //Syscalls por sysenter (Metodo MSR)
+  writeMSR(0x174,  __KERNEL_CS);
+  writeMSR(0x175,  INITIAL_ESP);
+  writeMSR(0x176,  syscall_handler_sysenter);
+
 
   set_idt_reg(&idtR);
 }
@@ -113,13 +132,47 @@ void keyboard_routine() {
 }
 
 void clock_routine() {
+  zeos_ticks++;
   zeos_show_clock();
 }
 
+void itoa_hexa (int a, char *b) {
+  int i = 0, i1;
+  char c;
+  
+  if (a == 0) { 
+    b[0] = '0'; 
+    b[1] = 0; 
+    return; 
+  }
+
+  while (a > 0) {
+    int digit = a % 16;
+
+    if (digit < 10) {
+      b[i] = digit + '0'; 
+    } 
+    else {
+      b[i] = digit - 10 + 'A';
+    }
+
+    a /= 16;
+    i++;
+  }
+
+  for (i1 = 0; i1 < i / 2; i1++) {
+    c = b[i1];
+    b[i1] = b[i - i1 - 1];
+    b[i - i1 - 1] = c;
+  }
+
+  b[i] = 0;
+}
+
 void my_page_fault_routine(int aux, int addr) {
-  printk("Process generates a PAGE FAULT exception at EIP: ");
+  printk("Process generates a PAGE FAULT exception at EIP: 0x");
   char buff[20];
-  itoa(addr, buff);
+  itoa_hexa(addr, buff);
   printk(buff);
   printk("\n");
   while(1);

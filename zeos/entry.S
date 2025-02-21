@@ -121,24 +121,57 @@ end:
       iret
 
 ENTRY(syscall_handler_sysenter)
+      #Guarda la info de usuario para que la pila quede igual que con el método de int 0x80
       push $__USER_DS
       push %EBP // User stack address
       pushfl
       push $__USER_CS
       push 4(%EBP) // User return address
+
+      #Guarda el contexto
       SAVE_ALL
+
+      #Comprueba que sea syscall válida (en %eax)
       cmpl $0, %EAX
       jl sysenter_err
       cmpl $MAX_SYSCALL, %EAX
       jg sysenter_err
+
+      #Ejecuta la syscall correspondiente
       call *sys_call_table(, %EAX, 0x04)
       jmp sysenter_fin
-      sysenter_err:
+
+sysenter_err:
+      #Se ejecuta solo en caso de error
       movl $-ENOSYS, %EAX
-      sysenter_fin:
+
+sysenter_fin:
+      #Restaura contexto
       movl %EAX, 0x18(%ESP)
       RESTORE_ALL
+
+      #Pone en %edx la return address del stack
       movl (%ESP), %EDX // Return address
+
+      #Pone en %ecx el valor del %ebp del usuario
       movl 12(%ESP), %ECX // User stack address
+      
+      #Activa interrupciones y vuelve a modo usuario
       sti // Enable interrupts again
       sysexit
+
+ENTRY(writeMSR)
+      # Guardar pila usuario
+      pushl %ebp
+      mov %esp,%ebp
+
+      #Guardamos parametros en registros %ecx y %eax --> pq wrmsr hace esto: 
+            #"Write the value in EDX:EAX to MSR specified by ECX."" 
+      mov 0x8(%ebp), %ecx     //Guarda en ecx el identificador del MSR ????????
+      movl $0, %edx           //La parte alta del registro siempre 0
+      mov 0xc(%ebp), %eax     //La parte baja es el segundo parametro 
+      wrmsr
+
+      #Restauramos pila y retornamos
+      pop %ebp
+      ret

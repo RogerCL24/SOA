@@ -15,6 +15,8 @@
 
 #include <errno.h>
 
+extern int zeos_ticks;
+
 #define LECTURA 0
 #define ESCRIPTURA 1
 
@@ -82,4 +84,8 @@ int sys_write(int fd, char *buffer, int size) {
 
   //Retorna el N de bytes escrits, en principi = size pero por si acaso.
   return size - toWrite;
+}
+
+int sys_gettime() {
+  return zeos_ticks;
 }

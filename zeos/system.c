@@ -101,8 +101,8 @@ int __attribute__((__section__(".text.main")))
   printk("Entering user mode...\n");
   
   printk_color("Arnau Garcia i Roger Cot\n", 4);
-  for (int i = 0; i < 50; i++) printk_color("AAAAAAAAAA", 4);
-  printk("A\n");
+  //for (int i = 0; i < 50; i++) printk_color("AAAAAAAAAA", 4);
+  //printk("A\n");
 
   enable_int();
   /*
