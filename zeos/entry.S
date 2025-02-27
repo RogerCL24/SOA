@@ -65,19 +65,6 @@
       popl %fs; \
       popl %gs; 
 
-#define RESTORE_NOEAX \
-      popl %edx; \
-      popl %ecx; \
-      popl %ebx; \
-      popl %esi; \
-      popl %edi; \
-      popl %ebp; \
-      addl $4, %esp; \
-      popl %ds; \
-      popl %es; \
-      popl %fs; \
-      popl %gs;      
-      
 #define EOI \
       movb $0x20, %al; \
       outb %al, $0x20; \
@@ -117,7 +104,8 @@ is_error:
       #Posa el codi correponent a %eax
       movl $-ENOSYS, %eax 
 end:
-      RESTORE_NOEAX
+      movl %eax, 0x18(%ebp) # guardar valor de retorno en la pila para no machacarlo
+      RESTORE_ALL
       iret
 
 ENTRY(syscall_handler_sysenter)
@@ -147,7 +135,7 @@ sysenter_err:
 
 sysenter_fin:
       #Restaura contexto
-      movl %EAX, 0x18(%ESP)
+      movl %EAX, 0x18(%ESP)	
       RESTORE_ALL
 
       #Pone en %edx la return address del stack

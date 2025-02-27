@@ -14,7 +14,7 @@
 # 7 "entry.S" 2
 # 1 "include/errno.h" 1
 # 8 "entry.S" 2
-# 85 "entry.S"
+# 72 "entry.S"
 .globl keyboard_handler; .type keyboard_handler, @function; .align 0; keyboard_handler:
       pushl %gs; pushl %fs; pushl %es; pushl %ds; pushl %eax; pushl %ebp; pushl %edi; pushl %esi; pushl %ebx; pushl %ecx; pushl %edx; movl $0x18, %edx; movl %edx, %ds; movl %edx, %es
       movb $0x20, %al; outb %al, $0x20;
@@ -50,7 +50,8 @@ is_error:
       #Posa el codi correponent a %eax
       movl $-38, %eax
 end:
-      popl %edx; popl %ecx; popl %ebx; popl %esi; popl %edi; popl %ebp; addl $4, %esp; popl %ds; popl %es; popl %fs; popl %gs;
+      movl %eax, 0x18(%ebp) # guardar valor de retorno en la pila para no machacarlo
+      popl %edx; popl %ecx; popl %ebx; popl %esi; popl %edi; popl %ebp; popl %eax; popl %ds; popl %es; popl %fs; popl %gs;
       iret
 
 .globl syscall_handler_sysenter; .type syscall_handler_sysenter, @function; .align 0; syscall_handler_sysenter:

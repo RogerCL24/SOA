@@ -107,9 +107,9 @@ void setIdt()
   setInterruptHandler(0x80, system_call_handler, 3);
 
   //Syscalls por sysenter (Metodo MSR)
-  writeMSR(0x174,  __KERNEL_CS);
+  writeMSR(0x174,   __KERNEL_CS);
   writeMSR(0x175,  INITIAL_ESP);
-  writeMSR(0x176,  syscall_handler_sysenter);
+  writeMSR(0x176,  (long)syscall_handler_sysenter);
 
 
   set_idt_reg(&idtR);

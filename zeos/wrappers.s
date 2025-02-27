@@ -92,6 +92,49 @@ gtime_no_error:
  popl %ebp
  ret
 
+.globl fast_gettime; .type fast_gettime, @function; .align 0; fast_gettime:
+
+    pushl %ebp
+ mov %esp,%ebp
+
+    #Codigo system call en %eax
+    movl $10, %eax
+
+    # Guardar %ecx y %edx en user stack
+    pushl %ecx
+    pushl %edx
+
+    #Guardar la return address en stack (loque se hará despues del sysenter)
+    pushl $gettime_return
+
+    # Se hace fake dinamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+ sysenter
+
+gettime_return:
+    # Eliminamos data de stack
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    #Comparamos el return de la syscall
+    cmpl $0, %eax
+ jge fast_gt_no_error
+
+ # Se ejcuta si hay error
+ negl %eax # Para obtener codigo error en positivo
+ movl %eax, errno # Pone el error en errno
+ movl $-1, %eax
+
+fast_gt_no_error:
+    # Se ejecuta si no hay error o cuando el error se ha guardado en errno
+
+ popl %ebp
+ ret
 
 .globl fast_write; .type fast_write, @function; .align 0; fast_write:
     # Implementacion con sysenter.

@@ -23,6 +23,11 @@ int __attribute__ ((__section__(".text.main")))
   //printk("Hello World");
   //char* p = 0;
   //*p = 'x';
+ char buff2[4096];
+ for (int i = 0; i < 4096; ++i) {
+	buff2[i] = 'a'; 
+ }
+ if (fast_write(1, buff2, strlen(buff2)) < 0) perror();
 
   //Test Write
   if (write(1, "El siguiente write dara error de canal:\n", 40) < 0) perror();
@@ -31,6 +36,7 @@ int __attribute__ ((__section__(".text.main")))
   if (fast_write(1, "Tambien pasara lo mismo con fast_write:\n", 40) < 0) perror();
   if (fast_write(2, "Hello World!\n", 13) < 0) perror();
   if (fast_write(1, "FUNCIONA!\n", 10) < 0) perror();
+  if (fast_write(1, "FUNCIONA!\n", 10) < 0) perror();
 
   //Test gettime
 
@@ -38,7 +44,7 @@ int __attribute__ ((__section__(".text.main")))
   char *buff;
   buff = " ";
   
-  itoa(gettime(), buff); 
+  itoa(fast_gettime(), buff); 
   if(write(1, "Time since start: ", 18) < 0) perror();
   if(write(1, buff, strlen(buff)) < 0) perror();
   if(write(1, "\n", 1) < 0) perror();
@@ -46,7 +52,7 @@ int __attribute__ ((__section__(".text.main")))
   int i;
   for (i = 0; i < 100000; ++i) {
     if (i%5000 == 0) {
-      itoa(gettime(), buff); 
+      itoa(fast_gettime(), buff); 
       if(write(1, "Time since start: ", 18) < 0) perror();
       if(write(1, buff, strlen(buff)) < 0) perror();
       if(write(1, "\n", 1) < 0) perror();
