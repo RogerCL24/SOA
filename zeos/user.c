@@ -41,8 +41,7 @@ int __attribute__ ((__section__(".text.main")))
   //Test gettime
 
   //!!!!!!!!!!!!!!!!!!!!!! Por que no funciona con buff[16]? itoa necesita poner \0 al final?
-  char *buff;
-  buff = " ";
+  char buff[24];
   
   itoa(fast_gettime(), buff); 
   if(write(1, "Time since start: ", 18) < 0) perror();

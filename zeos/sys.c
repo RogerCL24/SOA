@@ -62,7 +62,7 @@ int sys_write(int fd, char *buffer, int size) {
   if(buffer == NULL) return -EFAULT;  /* Bad address */
 
   //Comprova size.
-  if (size < 0) return -EINVAL;   /* Invalid argument */
+  if (size < 0 || !access_ok(VERIFY_READ, buffer, size)) return -EINVAL;   /* Invalid argument */
 
   int toWrite = size;         //Bytes que falten per escriure.
   char *newPointer = buffer;  //Punter auxiliar per apuntar a la zona del buffer on comencarem a escriure en cada iteracio.
