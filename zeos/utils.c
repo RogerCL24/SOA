@@ -130,3 +130,22 @@ unsigned long get_ticks(void) {
 
         return ticks;
 }
+
+void itoa_hexa(int a, char *b) {
+	static const char hexdigits[] = "0123456789ABCDEF";
+	char *start = b;
+
+	do {
+		*b++ = hexdigits[a%16];
+		a /= 16;
+	} while (a > 0);
+	
+	*b = '\0';
+
+	for (char *end = b - 1; start < end; start++, end--) {
+		char temp = *start;
+		*start = *end;
+		*end = temp;
+	}
+
+}

@@ -9,8 +9,14 @@
 #include <stats.h>
 
 int write(int fd, char *buffer, int size);
+int fast_write(int fd, char *buffer, int size);
+
+int gettime();
+int fast_gettime();
 
 void itoa(int a, char *b);
+
+void perror();
 
 int strlen(char *a);
 

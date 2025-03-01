@@ -40,6 +40,8 @@ LIBZEOS = -L . -l zeos
 #add to USROBJ any object files required to complete the user program
 USROBJ = \
 	libc.o \
+	suma.o \
+	wrappers.o \
 	# libjp.a \
 
 all:zeos.bin
@@ -63,6 +65,22 @@ bootsect.s: bootsect.S
 
 entry.s: entry.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h
 	$(CPP) $(ASMFLAGS) -o $@ $<
+	
+# Preprocesa suma.S a suma.s
+suma.s: suma.S
+	$(CPP) $(ASMFLAGS) -o $@ $<
+
+# Genera suma.o a partir de suma.s
+suma.o: suma.s
+	$(AS) -o $@ $<
+
+# Preprocesa wrappers.S a wrappers.s
+wrappers.s: wrappers.S
+	$(CPP) $(ASMFLAGS) -o $@ $<
+
+# Genera wrappers.o a partir de wrappers.s
+wrappers.o: wrappers.s
+	$(AS) -o $@ $<
 
 sys_call_table.s: sys_call_table.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h
 	$(CPP) $(ASMFLAGS) -o $@ $<
