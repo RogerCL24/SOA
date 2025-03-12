@@ -71,8 +71,8 @@
 
 ENTRY(keyboard_handler)
       SAVE_ALL
-      EOI
       call keyboard_routine
+      EOI
       RESTORE_ALL
       iret 
 
@@ -104,7 +104,7 @@ is_error:
       #Posa el codi correponent a %eax
       movl $-ENOSYS, %eax 
 end:
-      movl %eax, 0x18(%ebp) # guardar valor de retorno en la pila para no machacarlo
+      movl %eax, 0x18(%esp) # guardar valor de retorno en la pila para no machacarlo
       RESTORE_ALL
       iret
 

@@ -27,7 +27,8 @@
  mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
-    pushl %ebx; pushl %esi; pushl %edi;
+    # pushl %ebx; pushl %esi; pushl %edi; --> Solo hace falta guardar ebx
+    pushl %ebx;
 
     #Pasar parametros
     mov 0x10(%ebp), %ebx # size -> ebx
@@ -53,7 +54,8 @@ wr_no_error:
     # Se ejecuta si no hay error o cuando el error se ha guardado en errno
 
     # Restaurar registros antes de salir
-    popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx;
+    popl %ebx
 
  popl %ebp
  ret
@@ -66,7 +68,7 @@ wr_no_error:
  mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
-    pushl %ebx; pushl %esi; pushl %edi;
+    # pushl %ebx; pushl %esi; pushl %edi;
 
     #Codigo system call en %eax
     movl $10, %eax
@@ -87,7 +89,7 @@ gtime_no_error:
     # Se ejecuta si no hay error o cuando el error se ha guardado en errno (%eax contiene el return)
 
     # Restaurar registros antes de salir
-    popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx;
 
  popl %ebp
  ret
@@ -144,7 +146,8 @@ fast_gt_no_error:
  mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
-    pushl %ebx; pushl %esi; pushl %edi;
+    # pushl %ebx; pushl %esi; pushl %edi;
+    pushl %ebx
 
     #Pasar parametros
     mov 0x10(%ebp), %ebx # size -> ebx
@@ -188,7 +191,8 @@ fast_wr_no_error:
     # Se ejecuta si no hay error o cuando el error se ha guardado en errno
 
     # Restaurar registros antes de salir
-    popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx;
+    popl %ebx
 
  popl %ebp
  ret

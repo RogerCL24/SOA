@@ -16,6 +16,7 @@
 #include <errno.h>
 
 extern int zeos_ticks;
+extern struct list_head freequeue, readyqueue;
 
 #define LECTURA 0
 #define ESCRIPTURA 1
