@@ -7,6 +7,7 @@
 #include <hardware.h>
 #include <io.h>
 #include <libc.h>
+#include <sched.h>
 
 #include <zeos_interrupt.h>
 
@@ -132,8 +133,24 @@ void keyboard_routine() {
 }
 
 void clock_routine() {
+  static int ticks = 0;
+  static int state = 0;
+
   zeos_ticks++;
   zeos_show_clock();
+
+  ticks++;
+
+  if (ticks == 100) {
+	  ticks = 0;
+	  if (state == 0 ) {
+	  	task_switch((union task_union *)idle_task);
+		state = 1;
+	  } else {
+		 task_switch((union task_union *)init_task);
+		 state = 0;
+ 	 }
+  }
 }
 
 void my_page_fault_routine(int aux, int addr) {

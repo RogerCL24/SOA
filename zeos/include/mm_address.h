@@ -9,6 +9,7 @@
 #define FRAME_INIT_CODE (PH_USER_START>>12) #define NUM_PAG_CODE 8
 #define PAG_LOG_INIT_DATA (L_USER_START>>12)
 #define NUM_PAG_DATA 20
+#define NUM_PAG_CODE 8
 #define PAGE_SIZE 0x1000
 
 /* Memory distribution */
