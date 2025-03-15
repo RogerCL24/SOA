@@ -60,5 +60,5 @@ int needs_sched_rr();
 void update_sched_data_rr();
 
 extern struct task_struct *idle_task;
-extern struct task_struct *init_task;
+//extern struct task_struct *init_task;
 #endif  /* __SCHED_H__ */

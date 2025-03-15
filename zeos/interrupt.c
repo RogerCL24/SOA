@@ -133,13 +133,12 @@ void keyboard_routine() {
 }
 
 void clock_routine() {
-  static int ticks = 0;
-  static int state = 0;
-
+  /*static int ticks = 0;
+  static int state = 0;*/
   zeos_ticks++;
   zeos_show_clock();
 
-  ticks++;
+  /*ticks++;
 
   if (ticks == 100) {
 	  ticks = 0;
@@ -150,7 +149,7 @@ void clock_routine() {
 		 task_switch((union task_union *)init_task);
 		 state = 0;
  	 }
-  }
+  }*/
 }
 
 void my_page_fault_routine(int aux, int addr) {
