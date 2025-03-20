@@ -19,7 +19,7 @@ struct task_struct {
   page_table_entry * dir_pages_baseAddr;
   struct list_head list; 
   unsigned long quantum;
-  unsigned int kernel_esp; /* apuntador a la pila de sistema */
+  unsigned long kernel_esp; /* apuntador a la pila de sistema */
 };
 
 union task_union {
