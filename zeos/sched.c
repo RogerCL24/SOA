@@ -6,6 +6,7 @@
 #include <mm.h>
 #include <io.h>
 
+
 union task_union task[NR_TASKS]
   __attribute__((__section__(".data.task")));
 
@@ -22,7 +23,12 @@ struct task_struct *idle_task;
 //struct task_struct *init_task;  // Prova, switch_context
 
 void writeMSR(unsigned long msr, unsigned long valor);
+void change_stack(unsigned long *current_addr, unsigned long new_kesp);
 
+// Pág. 55
+void task_switch(union task_union *new);
+
+void change_stack();
 
 /* get_DIR - Returns the Page Directory address for task 't' */
 page_table_entry * get_DIR (struct task_struct *t) 
@@ -170,54 +176,7 @@ void inner_task_switch(union task_union *new_task) {
 	 */
 	set_cr3(get_DIR(&(new_task->task)));
 
-	/*
-	 * Con __asm__ __volatile__() podemos poner codigo assembler en C.
-	 *
-	 * Guardamos el valor de EBP (puntero base de la pila) en kernel_esp 
-	 * del proceso ACTUAL (current).
-	 *
-	 * EBP apunta al marco de la pila actual, que es el punto donde se 
-	 * ejecuta inner_task_switch.
-	 *
-	 * Cuando volvamos a este proceso más tarde, necesitaremos restaurar su
-	 * estado. Si no guardamos EBP, perderiamos la información sobre la pila
-	 * de este proceso.
-	 */
-	__asm__ __volatile__ (
-			"mov %%ebp, %0"
-			: "=g" (current()->kernel_esp):);
-
-	/*
-	 * Cargamos el valor de kernel_esp del proceso NUEVO (new) en ESP, cambiando
-	 * la pila activa.
-	 *
-	 * Cada proceso tiene su propia pila de sistema, de esta manera evitamos que 
-	 * el nuevo proceso ejecute codigo de la pila anterior. 
-	 */
-	__asm__ __volatile__ (
-			"mov %0, %%esp"
-			:
-			: "g" (new_task->task.kernel_esp));
-
-	/*
-	 * Recuperamos el valor anterior de EBP, el que estaba guardado en la pila.
-	 *
-	 * Cuando se cambia de tarea, EBP debe restaurarse al valor que tenia antes de
-	 * la llamada  a inner_task_switch, para que el nuevo proceso pueda continuar
-	 * ejecutandose correctamente.
-	 */
-	__asm__ __volatile__ (
-			"pop %%ebp"
-			:
-			:);
-
-	/*
-	 * RET reanuda la ejecucion del nuevo proceso
-	 */
-	__asm__ __volatile__ (
-			"ret"
-			:
-			:);
+	change_stack(&(current()->kernel_esp), new_task.task->kernel_esp);
 
 }
 
@@ -246,30 +205,3 @@ struct task_struct* current()
   return (struct task_struct*)(ret_value&0xfffff000);
 }
 
-// Pág. 55
-void task_switch(union task_union *new) {
-	/*
-	 * Guardamos los registros que seran modificados (Pie de pagina 31)
-	 */
-	__asm__ __volatile__ (
-		"push %%esi\n"
-		"push %%edi\n"
-		"push %%ebx\n"
-		:
-		:
-		: "memory");
-
-	inner_task_switch(new);
-
-	/*
-	 * Restauramos los registros
-	 */
-	__asm__ __volatile__ (
-		"pop %%ebx\n"
-		"pop %%edi\n"
-		"pop %%esi\n"
-		:
-		:
-		: "memory");
-		
-}
