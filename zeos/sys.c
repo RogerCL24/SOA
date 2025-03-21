@@ -41,7 +41,7 @@ int sys_getpid()
 int ret_from_fork() {
 	return 0;
 }
-
+int globalpid = 100;
 int sys_fork()
 {	
 	/*
@@ -229,7 +229,7 @@ int sys_fork()
 	((unsigned long *)KERNEL_ESP(child))[-0x12] = (unsigned long)&ret_from_fork;
 	
 	// 3.
-	child->task.kernel_esp = &((unsigned long)KERNEL_ESP(child))[-0x13];
+	child->task.kernel_esp =((unsigned long *)KERNEL_ESP(child))[-0x13];
 
 	/*
 	 * Por ultimo, añadimos child a readyqueue para que pueda ser ejecutado por la CPU

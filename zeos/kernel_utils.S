@@ -11,7 +11,7 @@ ENTRY(task_switch)
 	push %edi
 	push %ebx
 
-	pushl 0(%ebp)
+	pushl 8(%ebp)
 	call inner_task_switch
 	addl $4, %esp
 

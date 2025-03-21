@@ -60,8 +60,19 @@ int __attribute__ ((__section__(".text.main")))
       if(write(1, buff, strlen(buff)) < 0) perror();
       if(write(1, "\n", 1) < 0) perror();
     }
+  } 
+
+  // Test fork
+  int pid = fork();
+  if (pid < 0) perror();
+  else if (pid == 0) {
+	  if(write(1, "Soy el hijo", 11) < 0) perror();
   }
-    
+  else {
+	if (write(1, "Soy el padre", 12) < 0) perror();
+ }
+
+	    
 
   while(1) { 
     

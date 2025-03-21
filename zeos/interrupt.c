@@ -66,7 +66,7 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   /***********************************************************************/
   Word flags = (Word)(maxAccessibleFromPL << 13);
 
-  //flags |= 0x8F00;    /* P = 1, D = 1, Type = 1111 (Trap Gate) */
+  //flags |= 0x8F00;     P = 1, D = 1, Type = 1111 (Trap Gate) 
   /* Changed to 0x8e00 to convert it to an 'interrupt gate' and so
      the system calls will be thread-safe. */
   flags |= 0x8E00;    /* P = 1, D = 1, Type = 1110 (Interrupt Gate) */
@@ -133,7 +133,7 @@ void keyboard_routine() {
 }
 
 void clock_routine() {
-  /*static int ticks = 0;
+/*  static int ticks = 0;
   static int state = 0;*/
   zeos_ticks++;
   zeos_show_clock();

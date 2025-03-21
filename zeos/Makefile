@@ -34,6 +34,7 @@ SYSOBJ = \
 	utils.o \
 	hardware.o \
 	list.o \
+	kernel_utils.o
 
 LIBZEOS = -L . -l zeos
 
@@ -65,7 +66,13 @@ bootsect.s: bootsect.S
 
 entry.s: entry.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h
 	$(CPP) $(ASMFLAGS) -o $@ $<
-	
+
+kernel_utils.s: kernel_utils.S
+	$(CPP) $(ASMFLAGS) -o $@ $<
+
+kernel_utils.o: kernel_utils.s
+	$(AS) -o $@ $<
+		
 # Preprocesa suma.S a suma.s
 suma.s: suma.S
 	$(CPP) $(ASMFLAGS) -o $@ $<

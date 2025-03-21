@@ -196,3 +196,67 @@ fast_wr_no_error:
 
  popl %ebp
  ret
+
+.globl getpid; .type getpid, @function; .align 0; getpid:
+ push %ebp
+ mov %esp, %ebp
+
+ push %edx # Sysenter no preserva estos registros
+ push %ecx
+
+ movl $20, %eax # eax contiene el identificador de sys_getpid
+
+ push $gp_return # fake dynamic link necesario para sysenter
+ push %ebp
+ mov %esp, %ebp
+
+ sysenter
+
+gp_return:
+ pop %ebp # restablecemos los regs despues de sysenter
+ add $4, %esp
+ pop %ecx
+ pop %edx
+
+ cmp $0, %eax # comprobamos si la llamada a dado error
+ jge gp_no_error
+
+ neg %eax # si ha dado error, pid = -1
+ mov %eax, errno # se niega para obtener el valor abosluto
+ mov $-1, %eax
+
+gp_no_error:
+ pop %ebp # devolvemos el pid en eax
+ ret
+
+.globl fork; .type fork, @function; .align 0; fork:
+ push %ebp
+ mov %esp, %ebp
+
+ push %edx # Sysenter no preserva estos registros
+ push %ecx
+
+ movl $2, %eax
+
+ push $fork_return # fake dynamic link necesario para sysenter
+ push %ebp
+ mov %esp, %ebp
+
+ sysenter
+
+fork_return:
+ pop %ebp # restablecemos los regs despues de sysenter
+ add $4, %esp
+ pop %ecx
+ pop %edx
+
+ cmp $0, %eax # comprobamos si la llamada a dado error
+ jge fork_no_error
+
+ neg %eax # si ha dado error, pid = -1
+ mov %eax, errno # se niega para obtener el valor abosluto
+ mov $-1, %eax
+
+fork_no_error:
+ pop %ebp # devolvemos el pid en eax
+ ret

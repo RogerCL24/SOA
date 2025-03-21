@@ -229,7 +229,7 @@ ENTRY(fork)
 	push %edx 	# Sysenter no preserva estos registros
 	push %ecx
 	
-	movl $2, %eax  # eax contiene el identificador de sys_getpid
+	movl $2, %eax 
 	
 	push $fork_return # fake dynamic link necesario para sysenter 
 	push %ebp

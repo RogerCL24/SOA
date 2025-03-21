@@ -28,7 +28,6 @@ void change_stack(unsigned long *current_addr, unsigned long new_kesp);
 // Pág. 55
 void task_switch(union task_union *new);
 
-void change_stack();
 
 /* get_DIR - Returns the Page Directory address for task 't' */
 page_table_entry * get_DIR (struct task_struct *t) 
@@ -176,7 +175,7 @@ void inner_task_switch(union task_union *new_task) {
 	 */
 	set_cr3(get_DIR(&(new_task->task)));
 
-	change_stack(&(current()->kernel_esp), new_task.task->kernel_esp);
+	change_stack(&(current()->kernel_esp), new_task->task.kernel_esp);
 
 }
 
