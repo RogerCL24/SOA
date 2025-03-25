@@ -143,11 +143,11 @@ void clock_routine() {
   if (ticks == 100) {
 	  ticks = 0;
 	  if (state == 0 ) {
+  		state = 1;
 	  	task_switch((union task_union *)idle_task);
-		state = 1;
 	  } else {
+   		 state = 0;
 		 task_switch((union task_union *)init_task);
-		 state = 0;
  	 }
   }*/
 }
