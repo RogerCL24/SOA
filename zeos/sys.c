@@ -186,6 +186,7 @@ int sys_fork()
 	 * PID unico asignado al hijo
 	 */
 	child->task.PID = ++globalpid;
+	child->task.state = ST_READY;
 
 	/*
 	 * Preparamos la pila del hijo para "task_switch()"
@@ -229,7 +230,7 @@ int sys_fork()
 	((unsigned long *)KERNEL_ESP(child))[-0x12] = (unsigned long)&ret_from_fork;
 	
 	// 3.
-	child->task.kernel_esp =((unsigned long *)KERNEL_ESP(child))[-0x13];
+	child->task.kernel_esp = &((unsigned long *)KERNEL_ESP(child))[-0x13];
 
 	/*
 	 * Por ultimo, añadimos child a readyqueue para que pueda ser ejecutado por la CPU

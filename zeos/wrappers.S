@@ -17,7 +17,7 @@ ENTRY(write)
 
     # Guardar pila usuario
     pushl %ebp
-	mov %esp,%ebp
+    mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
     # SAVE_REGISTERS --> Solo hace falta guardar ebx
@@ -219,7 +219,7 @@ gp_return:
 	mov $-1, %eax
 
 gp_no_error:	
-	pop %ebp	# devolvemos el pid en eax
+	pop %ebp	# devolvemos il pid en eax
 	ret	
 
 ENTRY(fork)

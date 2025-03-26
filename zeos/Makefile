@@ -34,7 +34,7 @@ SYSOBJ = \
 	utils.o \
 	hardware.o \
 	list.o \
-	kernel_utils.o
+	kernel_utils.o 
 
 LIBZEOS = -L . -l zeos
 
@@ -98,7 +98,7 @@ interrupt.o:interrupt.c $(INCLUDEDIR)/interrupt.h $(INCLUDEDIR)/segment.h $(INCL
 
 io.o:io.c $(INCLUDEDIR)/io.h
 
-sched.o:sched.c $(INCLUDEDIR)/sched.h
+sched.o:sched.c $(INCLUDEDIR)/sched.h 
 
 libc.o:libc.c $(INCLUDEDIR)/libc.h
 

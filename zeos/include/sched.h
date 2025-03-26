@@ -18,7 +18,8 @@ struct task_struct {
   int PID;			/* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
   struct list_head list; 
-  unsigned long quantum;
+  int quantum;
+  enum state_t state;
   unsigned long kernel_esp; /* apuntador a la pila de sistema */
 };
 
@@ -58,7 +59,7 @@ void sched_next_rr();
 void update_process_state_rr(struct task_struct *t, struct list_head *dest);
 int needs_sched_rr();
 void update_sched_data_rr();
-
+void schedule();
 extern struct task_struct *idle_task;
 //extern struct task_struct *init_task;
 #endif  /* __SCHED_H__ */

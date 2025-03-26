@@ -133,20 +133,21 @@ void keyboard_routine() {
 }
 
 void clock_routine() {
-/*  static int ticks = 0;
+  /*static int ticks = 0;
   static int state = 0;*/
   zeos_ticks++;
   zeos_show_clock();
-
-  /*ticks++;
+  schedule();
+/*
+  ticks++;
 
   if (ticks == 100) {
 	  ticks = 0;
 	  if (state == 0 ) {
-  		state = 1;
+		state = 1;
 	  	task_switch((union task_union *)idle_task);
 	  } else {
-   		 state = 0;
+		 state = 0;
 		 task_switch((union task_union *)init_task);
  	 }
   }*/

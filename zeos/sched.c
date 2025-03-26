@@ -6,7 +6,6 @@
 #include <mm.h>
 #include <io.h>
 
-
 union task_union task[NR_TASKS]
   __attribute__((__section__(".data.task")));
 
@@ -21,13 +20,13 @@ extern struct list_head blocked;
 struct list_head freequeue, readyqueue;
 struct task_struct *idle_task;
 //struct task_struct *init_task;  // Prova, switch_context
+int ticks_qt = 0;	// Cuanto deberia valer?
 
 void writeMSR(unsigned long msr, unsigned long valor);
 void change_stack(unsigned long *current_addr, unsigned long new_kesp);
 
 // Pág. 55
 void task_switch(union task_union *new);
-
 
 /* get_DIR - Returns the Page Directory address for task 't' */
 page_table_entry * get_DIR (struct task_struct *t) 
@@ -63,6 +62,14 @@ void cpu_idle(void)
 	}
 }
 
+int get_quantum(struct task_struct *t) {
+	return t->quantum;
+}
+
+void set_quantum(struct task_struct *t, int new_quantum) {
+	t->quantum = new_quantum;
+}
+
 
 void init_idle (void)
 {	
@@ -77,6 +84,8 @@ void init_idle (void)
 
 	// Campo PID del PCB tiene valor 0 (es idle)
 	pcb->PID = 0;
+	set_quantum(pcb, 10);	// 10???
+	pcb->state = ST_READY;
 
 	
 	// Inicializamos la var dir_pages_baseAddr que indica la 
@@ -117,6 +126,9 @@ void init_task1(void)
 	struct task_struct *pcb = list_head_to_task_struct(lh);
 
 	pcb->PID = 1;
+	set_quantum(pcb, 10);			// 10???
+	pcb->state = ST_RUN;
+	ticks_qt = 10;
 
 	allocate_DIR(pcb);
 
@@ -155,7 +167,7 @@ void inner_task_switch(union task_union *new_task) {
 	 * para que ahora apunte a la pila de sistema del nuevo proceso.
 	 *
 	 * Si no cambiamos tss.esp0, cuando el nuevo proceso haga una syscall, el kernel 
-	 * podria intentar usar la pila del proceso interior, corromperia la memoria.
+	 * podria intentar usar la pila del proceso anterior, corromperia la memoria.
 	 */
 	tss.esp0 = KERNEL_ESP((union task_union *) new_task);
 	
@@ -174,7 +186,7 @@ void inner_task_switch(union task_union *new_task) {
 	 * proceso anterior, fallo de segmentacion.
 	 */
 	set_cr3(get_DIR(&(new_task->task)));
-
+	
 	change_stack(&(current()->kernel_esp), new_task->task.kernel_esp);
 
 }
@@ -184,7 +196,6 @@ void init_sched()
 {
 	INIT_LIST_HEAD(&freequeue);
 	INIT_LIST_HEAD(&readyqueue);
-	// se deberia usar list_head_to_stack_struct()???	
 	for (int i = 0; i < NR_TASKS; i++) {
 		list_add( &(task[i].task.list), &freequeue); // añadimos al head de freequeue 
 							     // nuevas entradas con los PCBs
@@ -204,3 +215,72 @@ struct task_struct* current()
   return (struct task_struct*)(ret_value&0xfffff000);
 }
 
+
+void update_sched_data_rr(void) {
+
+	--ticks_qt;
+}
+
+int needs_sched_rr() {
+	
+	// El quantum es 0 y la lista de ready NO esta vacia (hay procesos esperando)
+	if ((ticks_qt == 0) && (!list_empty(&readyqueue))) return 1;
+	// El quantum es 0, pero ready esta vacia, puede seguir ejecutandose
+	if (ticks_qt == 0) ticks_qt = get_quantum(current());
+	return 0;
+}
+
+void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue) {
+	// Si no esta running significa que esta en alguna cola
+	if (t->state != ST_RUN) list_del(&(t->list));
+	
+	// En caso de que el nuevo estado NO sea running
+	if (dst_queue != NULL) {
+		list_add_tail(&(t->list), dst_queue);
+		
+		// Si el siguiente estado no es ready y viene de running, pasa blocked
+		if (dst_queue != &readyqueue) t->state = ST_BLOCKED;
+		else t->state = ST_READY;
+	} else t->state = ST_RUN;
+}
+
+void sched_next_rr(void) {
+	
+	struct list_head *lh;
+	struct task_struct *ts;
+
+	/*
+	 * Si aun hay procesos en ready t = first de readyqueue, sino
+	 * t = idle	
+	 */
+
+	if (!list_empty(&readyqueue)) {
+		lh = list_first(&readyqueue);
+		list_del(lh);
+		ts = list_head_to_task_struct(lh);
+		if(current() != idle_task) list_add_tail(&current()->list, &readyqueue);
+	}
+	else ts = idle_task;
+	
+	ts -> state = ST_RUN;
+	ticks_qt = get_quantum(ts);
+
+	if (current()->PID != ts->PID) task_switch((union task_union*) ts);
+}
+
+void schedule() {
+	// Update del numero de ticks del proceso current
+	update_sched_data_rr();
+	
+	// Devuelve 1 is necesario cambiar el proceso current
+	if (needs_sched_rr()) {
+		// Update del estado de current de running a ready
+		update_process_state_rr(current(), &readyqueue);
+		/*
+		 * Selecciona el siguiente proceso a ejecutar, lo extrae de la readyqueue
+	 	 * e invoca el switch_context
+		 */
+		sched_next_rr();
+	}
+
+}
