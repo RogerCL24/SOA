@@ -17,8 +17,8 @@
 # 72 "entry.S"
 .globl keyboard_handler; .type keyboard_handler, @function; .align 0; keyboard_handler:
       pushl %gs; pushl %fs; pushl %es; pushl %ds; pushl %eax; pushl %ebp; pushl %edi; pushl %esi; pushl %ebx; pushl %ecx; pushl %edx; movl $0x18, %edx; movl %edx, %ds; movl %edx, %es
-      movb $0x20, %al; outb %al, $0x20;
       call keyboard_routine
+      movb $0x20, %al; outb %al, $0x20;
       popl %edx; popl %ecx; popl %ebx; popl %esi; popl %edi; popl %ebp; popl %eax; popl %ds; popl %es; popl %fs; popl %gs;
       iret
 
@@ -50,7 +50,7 @@ is_error:
       #Posa el codi correponent a %eax
       movl $-38, %eax
 end:
-      movl %eax, 0x18(%ebp) # guardar valor de retorno en la pila para no machacarlo
+      movl %eax, 0x18(%esp) # guardar valor de retorno en la pila para no machacarlo
       popl %edx; popl %ecx; popl %ebx; popl %esi; popl %edi; popl %ebp; popl %eax; popl %ds; popl %es; popl %fs; popl %gs;
       iret
 
@@ -93,19 +93,3 @@ sysenter_fin:
       #Activa interrupciones y vuelve a modo usuario
       sti
       sysexit
-
-.globl writeMSR; .type writeMSR, @function; .align 0; writeMSR:
-      # Guardar pila usuario
-      pushl %ebp
-      mov %esp,%ebp
-
-      #Guardamos parametros en registros %ecx y %eax --> pq wrmsr hace esto:
-            #"Write the value in EDX:EAX to MSR specified by ECX."" 
-      mov 0x8(%ebp), %ecx
-      movl $0, %edx
-      mov 0xc(%ebp), %eax
-      wrmsr
-
-      #Restauramos pila y retornamos
-      pop %ebp
-      ret

@@ -71,8 +71,8 @@
 
 ENTRY(keyboard_handler)
       SAVE_ALL
-      EOI
       call keyboard_routine
+      EOI
       RESTORE_ALL
       iret 
 
@@ -104,7 +104,7 @@ is_error:
       #Posa el codi correponent a %eax
       movl $-ENOSYS, %eax 
 end:
-      movl %eax, 0x18(%ebp) # guardar valor de retorno en la pila para no machacarlo
+      movl %eax, 0x18(%esp) # guardar valor de retorno en la pila para no machacarlo
       RESTORE_ALL
       iret
 
@@ -147,19 +147,3 @@ sysenter_fin:
       #Activa interrupciones y vuelve a modo usuario
       sti // Enable interrupts again
       sysexit
-
-ENTRY(writeMSR)
-      # Guardar pila usuario
-      pushl %ebp
-      mov %esp,%ebp
-
-      #Guardamos parametros en registros %ecx y %eax --> pq wrmsr hace esto: 
-            #"Write the value in EDX:EAX to MSR specified by ECX."" 
-      mov 0x8(%ebp), %ecx     //Guarda en ecx el identificador del MSR ????????
-      movl $0, %edx           //La parte alta del registro siempre 0
-      mov 0xc(%ebp), %eax     //La parte baja es el segundo parametro 
-      wrmsr
-
-      #Restauramos pila y retornamos
-      pop %ebp
-      ret

@@ -34,6 +34,7 @@ SYSOBJ = \
 	utils.o \
 	hardware.o \
 	list.o \
+	kernel_utils.o
 
 LIBZEOS = -L . -l zeos
 
@@ -81,6 +82,15 @@ wrappers.s: wrappers.S
 # Genera wrappers.o a partir de wrappers.s
 wrappers.o: wrappers.s
 	$(AS) -o $@ $<
+
+#Preprocessa kernel_utils.S a kernel_utils.s
+kernel_utils.s: kernel_utils.S
+	$(CPP) $(ASMFLAGS) -o $@ $<
+
+#Genera kernel_utils.o a partir kernel_utils.s
+kernel_utils.o: kernel_utils.s
+	$(AS) -o $@ $<
+
 
 sys_call_table.s: sys_call_table.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h
 	$(CPP) $(ASMFLAGS) -o $@ $<

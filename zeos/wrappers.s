@@ -27,7 +27,8 @@
  mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
-    pushl %ebx; pushl %esi; pushl %edi;
+    # pushl %ebx; pushl %esi; pushl %edi; --> Solo hace falta guardar ebx
+    pushl %ebx;
 
     #Pasar parametros
     mov 0x10(%ebp), %ebx # size -> ebx
@@ -53,7 +54,8 @@ wr_no_error:
     # Se ejecuta si no hay error o cuando el error se ha guardado en errno
 
     # Restaurar registros antes de salir
-    popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx;
+    popl %ebx
 
  popl %ebp
  ret
@@ -66,7 +68,7 @@ wr_no_error:
  mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
-    pushl %ebx; pushl %esi; pushl %edi;
+    # pushl %ebx; pushl %esi; pushl %edi;
 
     #Codigo system call en %eax
     movl $10, %eax
@@ -87,7 +89,7 @@ gtime_no_error:
     # Se ejecuta si no hay error o cuando el error se ha guardado en errno (%eax contiene el return)
 
     # Restaurar registros antes de salir
-    popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx;
 
  popl %ebp
  ret
@@ -144,7 +146,8 @@ fast_gt_no_error:
  mov %esp,%ebp
 
     # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
-    pushl %ebx; pushl %esi; pushl %edi;
+    # pushl %ebx; pushl %esi; pushl %edi;
+    pushl %ebx
 
     #Pasar parametros
     mov 0x10(%ebp), %ebx # size -> ebx
@@ -188,7 +191,121 @@ fast_wr_no_error:
     # Se ejecuta si no hay error o cuando el error se ha guardado en errno
 
     # Restaurar registros antes de salir
-    popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx;
+    popl %ebx
 
+ popl %ebp
+ ret
+
+.globl getpid; .type getpid, @function; .align 0; getpid:
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Guardar %ecx y %edx en user stack
+    pushl %ecx
+    pushl %edx
+
+    #Ponemos codigo syscall
+    movl $20, %eax
+
+    pushl $getpid_return
+
+    # Se hace fake dinamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+    sysenter
+
+getpid_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    #Comparamos el return de la syscall
+    cmpl $0, %eax
+ jge getpid_no_error
+
+ # Se ejcuta si hay error
+ negl %eax # Para obtener codigo error en positivo
+ movl %eax, errno # Pone el error en errno
+ movl $-1, %eax
+
+getpid_no_error:
+    # Se ejecuta si no hay error o cuando el error se ha guardado en errno
+ popl %ebp
+ ret
+
+
+.globl fork; .type fork, @function; .align 0; fork:
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Guardar %ecx y %edx en user stack
+    pushl %ecx
+    pushl %edx
+
+    #Ponemos codigo syscall
+    movl $2, %eax
+
+    pushl $fork_return
+
+    # Se hace fake dinamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+    sysenter
+
+fork_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    #Comparamos el return de la syscall
+    cmpl $0, %eax
+ jge fork_no_error
+
+    # Se ejcuta si hay error
+ negl %eax # Para obtener codigo error en positivo
+ movl %eax, errno # Pone el error en errno
+ movl $-1, %eax
+
+fork_no_error:
+    # Se ejecuta si no hay error o cuando el error se ha guardado en errno
+ popl %ebp
+ ret
+
+
+.globl exit; .type exit, @function; .align 0; exit:
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Guardar %ecx y %edx en user stack
+    pushl %ecx
+    pushl %edx
+
+    #Ponemos codigo syscall
+    movl $1, %eax
+
+    pushl $exit_return
+
+    # Se hace fake dinamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+    sysenter
+
+exit_return:
+    popl %ebp
+    addl $4, %esp
+
+    popl %edx
+    popl %ecx
+
+    # No hi ha possible error
  popl %ebp
  ret

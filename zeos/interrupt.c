@@ -15,6 +15,9 @@ Register    idtR;
 
 int zeos_ticks = 0;
 
+extern struct task_struct *idle_task;
+extern struct task_struct *init_task;
+
 char char_map[] =
 {
   '\0','\0','1','2','3','4','5','6',
@@ -128,45 +131,47 @@ void keyboard_routine() {
   if (is_break == 0) {
     char c = char_map[port_info & 0x7F];
     printc_xy(0, 0, c);
-  } 
+  }
+
+  ////Test Task_switch
+  /*
+    static int state = 0;
+    if (state == 0 ) {
+      task_switch((union task_union *)idle_task);
+      state = 1;
+    } 
+    else {
+      task_switch((union task_union *)init_task);
+      state = 0;
+    }
+  */
 }
 
 void clock_routine() {
   zeos_ticks++;
   zeos_show_clock();
-}
 
-void itoa_hexa (int a, char *b) {
-  int i = 0, i1;
-  char c;
-  
-  if (a == 0) { 
-    b[0] = '0'; 
-    b[1] = 0; 
-    return; 
-  }
+  schedule();
 
-  while (a > 0) {
-    int digit = a % 16;
+  //Test Task_switch
+  /*
+    static int ticks = 0;
+    static int state = 0;
 
-    if (digit < 10) {
-      b[i] = digit + '0'; 
-    } 
-    else {
-      b[i] = digit - 10 + 'A';
+    ticks++;
+
+    if (ticks == 100) {
+      ticks = 0;
+      if (state == 0 ) {
+        state = 1;
+        task_switch((union task_union *)idle_task);
+      } 
+      else {
+        state = 0;
+        task_switch((union task_union *)init_task);
+      }
     }
-
-    a /= 16;
-    i++;
-  }
-
-  for (i1 = 0; i1 < i / 2; i1++) {
-    c = b[i1];
-    b[i1] = b[i - i1 - 1];
-    b[i - i1 - 1] = c;
-  }
-
-  b[i] = 0;
+  */
 }
 
 void my_page_fault_routine(int aux, int addr) {
