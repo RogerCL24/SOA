@@ -85,8 +85,6 @@ void init_idle (void)
 	// Campo PID del PCB tiene valor 0 (es idle)
 	pcb->PID = 0;
 	set_quantum(pcb, 10);	// 10???
-	pcb->state = ST_READY;
-
 	
 	// Inicializamos la var dir_pages_baseAddr que indica la 
 	// direccion base del page_directory del proceso
@@ -127,7 +125,6 @@ void init_task1(void)
 
 	pcb->PID = 1;
 	set_quantum(pcb, 10);			// 10???
-	pcb->state = ST_RUN;
 	ticks_qt = 10;
 
 	allocate_DIR(pcb);
@@ -231,17 +228,18 @@ int needs_sched_rr() {
 }
 
 void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue) {
-	// Si no esta running significa que esta en alguna cola
-	if (t->state != ST_RUN) list_del(&(t->list));
+
+	struct list_head *lh_tmp = &t->list;
 	
-	// En caso de que el nuevo estado NO sea running
-	if (dst_queue != NULL) {
-		list_add_tail(&(t->list), dst_queue);
-		
-		// Si el siguiente estado no es ready y viene de running, pasa blocked
-		if (dst_queue != &readyqueue) t->state = ST_BLOCKED;
-		else t->state = ST_READY;
-	} else t->state = ST_RUN;
+	// Si el proceso tiene sus punteros apuntando a otros list_head significa
+	// que esta en una lista, lo eliminamos de su cola actual
+	if (!(lh_tmp->prev==NULL && lh_tmp->next == NULL)) {
+		list_del(lh_tmp);
+	}
+	
+	// Si dst_queue es null significa que es runnning y no se le añade a ninguna
+	// cola. De lo contrario, cambiamos a la nueva cola
+	if (dst_queue && current() != idle_task) list_add_tail(lh_tmp, dst_queue);
 }
 
 void sched_next_rr(void) {
@@ -258,11 +256,9 @@ void sched_next_rr(void) {
 		lh = list_first(&readyqueue);
 		list_del(lh);
 		ts = list_head_to_task_struct(lh);
-		if(current() != idle_task) list_add_tail(&current()->list, &readyqueue);
 	}
 	else ts = idle_task;
 	
-	ts -> state = ST_RUN;
 	ticks_qt = get_quantum(ts);
 
 	if (current()->PID != ts->PID) task_switch((union task_union*) ts);

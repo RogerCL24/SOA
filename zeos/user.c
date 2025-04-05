@@ -71,8 +71,8 @@ int __attribute__ ((__section__(".text.main")))
   else {
 	if (write(1, "Soy el padre", 12) < 0) perror();
  }
-
-	    
+	
+  exit();    
 
   while(1) { 
     

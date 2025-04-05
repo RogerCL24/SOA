@@ -19,7 +19,6 @@ struct task_struct {
   page_table_entry * dir_pages_baseAddr;
   struct list_head list; 
   int quantum;
-  enum state_t state;
   unsigned long kernel_esp; /* apuntador a la pila de sistema */
 };
 

@@ -260,3 +260,34 @@ fork_return:
 fork_no_error:
  pop %ebp # devolvemos el pid en eax
  ret
+
+.globl exit; .type exit, @function; .align 0; exit:
+ push %ebp
+ movl %esp, %ebp
+
+ push %edx
+ push %ecx
+
+ movl $1, %eax
+ push $ret_exit
+ push %ebp
+ mov %esp, %ebp
+
+ sysenter
+
+ret_exit:
+ pop %ebp
+ add $4, %esp
+ pop %ecx
+ pop %edx
+
+ cmp $0, %eax
+ jge exit_no_error
+
+ neg %eax
+ mov %eax, errno
+ mov $-1, %eax
+
+exit_no_error:
+ pop %ebp
+ ret

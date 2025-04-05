@@ -167,13 +167,13 @@ int sys_fork()
 	 * - si "i" = 1 -> @real: 0x00001000  
 	 * del_ss_pag() borra la pagina del hijo de la TP del padre, por eso 'temporalmente' 
 	 */
-	int SHARED_SPACE = NUM_PAG_KERNEL + NUM_PAG_CODE;
-	int TOTAL_SPACE = SHARED_SPACE + NUM_PAG_DATA;
+	int FREE_SPACE = NUM_PAG_DATA + NUM_PAG_CODE;
+	int TOTAL_SPACE = NUM_PAG_KERNEL + NUM_PAG_DATA;
 
-	for (int i = SHARED_SPACE; i < TOTAL_SPACE; i++) {
-		set_ss_pag(parent_PT, i + NUM_PAG_DATA, get_frame(child_PT, i));
-		copy_data((void *) (i << 12), (void*)((i + NUM_PAG_DATA) << 12), PAGE_SIZE);
-		del_ss_pag(parent_PT, i + NUM_PAG_DATA);
+	for (int i = NUM_PAG_KERNEL; i < TOTAL_SPACE; i++) {
+		set_ss_pag(parent_PT, i + FREE_SPACE, get_frame(child_PT, i));
+		copy_data((void *) (i << 12), (void*)((i + FREE_SPACE) << 12), PAGE_SIZE);
+		del_ss_pag(parent_PT, i + FREE_SPACE);
 	}
 	
 	/*
@@ -186,7 +186,6 @@ int sys_fork()
 	 * PID unico asignado al hijo
 	 */
 	child->task.PID = ++globalpid;
-	child->task.state = ST_READY;
 
 	/*
 	 * Preparamos la pila del hijo para "task_switch()"
@@ -242,6 +241,18 @@ int sys_fork()
 
 void sys_exit()
 {  
+	struct task_struct *ts = current();
+	page_table_entry *PT = get_PT(ts);
+	int TOTAL = PAG_LOG_INIT_DATA + NUM_PAG_DATA;
+	for (int i = PAG_LOG_INIT_DATA; i < TOTAL; ++i) {
+		free_frame(get_frame(PT, i));
+		del_ss_pag(PT, i);
+	}
+
+	ts->PID = -1;
+	ts->dir_pages_baseAddr = NULL;
+	update_process_state_rr(ts, &freequeue);
+	sched_next_rr();
 }
 
 #define BUFF_SIZE 256
