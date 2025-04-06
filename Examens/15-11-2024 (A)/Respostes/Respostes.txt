@@ -1,0 +1,110 @@
+1. (3 puntos) Comprensión de Zeos 
+a) (1 punto)¿A que rutina corresponde la dirección 0x10706?¿Cómo lo has 
+hallado? 
+Usamos: addr2line -e system 0x10706
+
+b) (1 punto) ¿En qué página se encuentra la pila de sistema del proceso inicial?. 
+
+Se declara init_task con el pcb de task1 en el codigo y se hace print de su pos en memoria: p init_task
+
+c) (1 punto)  Dada la función shared implementada en un fichero exam.o. Indica  la 
+línea (o líneas) de comandos necesarias para linkar este objeto y que puedas 
+usar la función tanto desde el código de sistema como del de usuario. 
+
+Añadir exam.o en SYSOBJ y USEROBJ.
+Comprobar con: nm system | grep shared y nm user | grep 
+Declarar como extern en codigo de usuario?
+
+2. (2 puntos) Copy others memory 
+
+a) ¿Qué valor leerá el proceso padre en la variable local después de ejecutar la 
+línea 6? 
+Depende, pero deberia ser un 42 si se ejecuta antes el hijo.
+
+Indica el código necesario para: 
+b) Calcular la página que contiene la dirección start. 
+ (utils.c)
+
+3. (5 puntos) Call me maybe 
+
+a) (0,5 puntos) Implementa el código del wrapper de la llamada timeout.
+ 
+wrappers.S 
+
+b) (0,5 puntos) Indica los cambios necesarios en los handlers existentes. 
+
+entry.S (syscall_handler_sysenter)
+
+c) (0,5 puntos) Indica qué estructuras de datos se tienen que añadir y/o 
+modificar. Añade el código necesario para inicializarlas.
+
+En sched.h:
+struct task_struct {
+    ...
+    int timeout_ticks;
+    void (*timeout_func)(void);
+    int timeout_pending;
+    ...
+};
+
+En init_task y init_idle:
+p->timeout_ticks = 0;
+p->timeout_func = NULL;
+p->timeout_pending = 0;
+
+En sys_fork:
+child->timeout_ticks = 0;
+child->timeout_func = NULL;
+child->timeout_pending = 0;
+
+En la sys_call_table:
+.long sys_timeout // en la posición 7
+
+
+d) (1 punto) Implementa el código de la rutina sys_timeout. 
+
+sys.c
+
+e) (1 punto) Implementa los cambios necesarios en la rutina de reloj para 
+detectar el timeout. 
+
+void clock_routine() {
+  ++zeos_ticks;
+  zeos_show_clock();
+
+  struct task_struct *t = current();
+
+  if (t->timeout_ticks > 0) {
+      t->timeout_ticks--;
+
+      if (t->timeout_ticks == 0) {
+          t->timeout_pending = 1;
+      }
+  }
+
+  schedule(); 
+}
+
+f) (1 punto) Indica el código necesario para detectar si un proceso está marcado 
+y ejecutar su rutina de timeout. 
+
+entry.S (No implementado)
+
+g) (0,5 puntos) ¿Es necesario modificar alguna otra llamada a sistema o parte 
+del sistema para implementar por completo esta funcionalidad? Si es así 
+implementa los cambios necesarios. 
+
+
+En fork():
+p_child->timeout_ticks = 0;
+p_child->timeout_pending = 0;
+p_child->timeout_handler = 0;
+
+
+
+
+
+
+
+
+
