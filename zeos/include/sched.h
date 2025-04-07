@@ -20,6 +20,12 @@ struct task_struct {
   struct list_head list; 
   int quantum;
   unsigned long kernel_esp; /* apuntador a la pila de sistema */
+
+  int pending_unblocks;   	// bloqueos pendientes
+  struct list_head children_blocked;	// lista de hijos bloqueados
+  struct list_head children_unblocked;	// lista de hijos desbloqueados
+  struct list_head sibling;	// enlace del padre al hijo
+  struct task_struct *parent;	// apuntador al padre
 };
 
 union task_union {

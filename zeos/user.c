@@ -65,16 +65,39 @@ int __attribute__ ((__section__(".text.main")))
   // Test fork
   int pid = fork();
   if (pid < 0) perror();
-  else if (pid == 0) {
-	  if(write(1, "Soy el hijo", 11) < 0) perror();
+  else if (pid == 0) { 
+	  if(write(1, "\nMe voy a bloquear", 18) < 0) perror();
+	  block();
+	  if(write(1, "\nSoy el hijo", 12) < 0) perror();
+	  exit();
   }
   else {
-	if (write(1, "Soy el padre", 12) < 0) perror();
- }
-	
-  exit();    
+	if (write(1, "\nSoy el padre", 13) < 0) perror();
+	if (unblock(333) < 0) {
+		if (write(1, "\nEl hijo no existe",18) < 0) perror();
+	}
+	if (unblock(pid) == 0) {
+		if(write(1, "\nSi existe!, hijo desbloqueado...",33) < 0) perror();
+	}
 
-  while(1) { 
+ }
+
+  int pid_for[10];
+ for (int i = 0; i < 10; ++i) {
+	pid_for[i] = fork();
+	if (pid_for[i] < 0) perror();
+	else if (pid_for[i] == 0) {
+		block();
+		exit();
+	}
+ }
+
+ for (int i = 0; i < 10; ++i) {
+	if (unblock(pid_for[i]) == 0) if (write(1, "\nDesbloqueado", 13) < 0) perror();
+ }
+
+
+ while(1) { 
     
   }
 }

@@ -291,3 +291,65 @@ ret_exit:
 exit_no_error:
  pop %ebp
  ret
+
+.globl block; .type block, @function; .align 0; block:
+ push %ebp
+ mov %esp, %ebp
+
+ push %edx
+ push %ecx
+
+ movl $21, %eax
+ push $ret_blocked
+ push %ebp
+ mov %esp, %ebp
+
+ sysenter
+ret_blocked:
+ pop %ebp
+ add $4, %esp
+ pop %ecx
+ pop %edx
+
+ cmp $0, %eax
+ jge blocked_no_error
+
+ neg %eax
+ mov %eax, errno
+ mov $-1, %eax
+
+blocked_no_error:
+ pop %ebp
+ ret
+
+.globl unblock; .type unblock, @function; .align 0; unblock:
+ push %ebp
+ mov %esp, %ebp
+
+ mov 0x08(%ebp),%edx
+
+ push %edx
+ push %ecx
+
+ movl $22, %eax
+ push $ret_unblocked
+ push %ebp
+ mov %esp, %ebp
+
+ sysenter
+ret_unblocked:
+ pop %ebp
+ add $4, %esp
+ pop %ecx
+ pop %edx
+
+ cmp $0, %eax
+ jge unblocked_no_error
+
+ neg %eax
+ mov %eax, errno
+ mov $-1, %eax
+
+unblocked_no_error:
+ pop %ebp
+ ret

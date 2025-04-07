@@ -84,7 +84,11 @@ void init_idle (void)
 
 	// Campo PID del PCB tiene valor 0 (es idle)
 	pcb->PID = 0;
-	set_quantum(pcb, 10);	// 10???
+	set_quantum(pcb, 10);	// 10???i
+	pcb->parent = NULL;
+	INIT_LIST_HEAD(&pcb->children_blocked);
+	INIT_LIST_HEAD(&pcb->children_unblocked);
+	pcb->pending_unblocks = 0;
 	
 	// Inicializamos la var dir_pages_baseAddr que indica la 
 	// direccion base del page_directory del proceso
@@ -126,6 +130,11 @@ void init_task1(void)
 	pcb->PID = 1;
 	set_quantum(pcb, 10);			// 10???
 	ticks_qt = 10;
+	pcb->parent = NULL;
+	INIT_LIST_HEAD(&pcb->children_blocked);
+	INIT_LIST_HEAD(&pcb->children_unblocked);
+	INIT_LIST_HEAD(&pcb->sibling);
+	pcb->pending_unblocks = 0;
 
 	allocate_DIR(pcb);
 
@@ -193,6 +202,7 @@ void init_sched()
 {
 	INIT_LIST_HEAD(&freequeue);
 	INIT_LIST_HEAD(&readyqueue);
+	INIT_LIST_HEAD(&blocked);
 	for (int i = 0; i < NR_TASKS; i++) {
 		list_add( &(task[i].task.list), &freequeue); // añadimos al head de freequeue 
 							     // nuevas entradas con los PCBs

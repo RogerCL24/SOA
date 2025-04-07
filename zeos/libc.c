@@ -69,6 +69,10 @@ void perror() {
       write(1, "Invalid argument\n", 17);
       break;
 
+    case ENOMEM:
+      write(1, "Out of memory\n", 14);
+      break;
+    
     case 0:
     write(1, "No known errors\n", 16);
     break;

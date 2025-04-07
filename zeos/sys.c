@@ -17,6 +17,8 @@
 
 extern int zeos_ticks;
 extern struct list_head freequeue, readyqueue;
+extern struct list_head blocked;
+
 
 #define LECTURA 0
 #define ESCRIPTURA 1
@@ -231,6 +233,14 @@ int sys_fork()
 	// 3.
 	child->task.kernel_esp = &((unsigned long *)KERNEL_ESP(child))[-0x13];
 
+	child->task.pending_unblocks = 0;
+	INIT_LIST_HEAD(&(child->task.children_blocked));
+	INIT_LIST_HEAD(&(child->task.children_unblocked));
+	INIT_LIST_HEAD(&(child->task.sibling));
+	child->task.parent = current();
+
+	list_add_tail(&(child->task.sibling), &(current()->children_unblocked));
+
 	/*
 	 * Por ultimo, añadimos child a readyqueue para que pueda ser ejecutado por la CPU
 	 * y devolvemos el PID del hijo
@@ -242,6 +252,25 @@ int sys_fork()
 void sys_exit()
 {  
 	struct task_struct *ts = current();
+
+	// Si NO es idle, nos eliminamos de la lista de hijos del padre
+	if (ts->parent != NULL) list_del(&ts->sibling);
+
+	struct list_head *pos, *tmp;
+	list_for_each_safe(pos, tmp, &ts->children_unblocked) {
+		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
+		list_del(pos);
+		list_add_tail(&child->sibling, &idle_task->children_unblocked);
+		child->parent = idle_task;
+	}
+
+	list_for_each_safe(pos, tmp, &ts->children_blocked) {
+		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
+		list_del(pos);
+		list_add_tail(&child->sibling, &idle_task->children_blocked);
+		child->parent = idle_task;
+	}
+
 	page_table_entry *PT = get_PT(ts);
 	int TOTAL = PAG_LOG_INIT_DATA + NUM_PAG_DATA;
 	for (int i = PAG_LOG_INIT_DATA; i < TOTAL; ++i) {
@@ -253,6 +282,45 @@ void sys_exit()
 	ts->dir_pages_baseAddr = NULL;
 	update_process_state_rr(ts, &freequeue);
 	sched_next_rr();
+}
+
+void sys_block() {
+	struct task_struct *ts = current();
+	if (ts->pending_unblocks > 0) {
+		ts->pending_unblocks--;
+		return;
+	}
+	
+	struct task_struct *parent = ts->parent;
+	list_del(&ts->sibling);				// Lo sacamos de la lista unblocked
+	list_add_tail(&ts->sibling, &parent->children_blocked);
+
+	update_process_state_rr(ts, &blocked);
+	sched_next_rr();
+}
+
+int sys_unblock(int pid) {
+	struct task_struct *parent = current();
+	struct list_head *pos;
+
+	list_for_each(pos, &parent->children_blocked) {
+		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
+		if (child->PID == pid) {
+			list_del(&child->sibling);
+			list_add_tail(&child->sibling, &parent->children_unblocked);
+			update_process_state_rr(child, &readyqueue);
+			return 0;
+		}
+	}
+
+	list_for_each(pos, &parent->children_unblocked) {
+		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
+		if (child->PID == pid) {
+			child->pending_unblocks++;
+			return 0;
+		}
+	}
+	return -1;
 }
 
 #define BUFF_SIZE 256
