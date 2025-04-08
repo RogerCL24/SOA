@@ -24,6 +24,7 @@ Depende, pero deberia ser un 42 si se ejecuta antes el hijo.
 Indica el código necesario para: 
 b) Calcular la página que contiene la dirección start. 
  (utils.c)
+...
 
 3. (5 puntos) Call me maybe 
 
