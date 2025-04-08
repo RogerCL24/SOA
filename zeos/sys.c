@@ -292,9 +292,10 @@ void sys_block() {
 	}
 	
 	struct task_struct *parent = ts->parent;
-	list_del(&ts->sibling);				// Lo sacamos de la lista unblocked
-	list_add_tail(&ts->sibling, &parent->children_blocked);
-
+	if (parent != NULL) {
+		list_del(&ts->sibling);				// Lo sacamos de la lista unblocked
+		list_add_tail(&ts->sibling, &parent->children_blocked);
+	}
 	update_process_state_rr(ts, &blocked);
 	sched_next_rr();
 }
