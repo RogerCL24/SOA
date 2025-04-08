@@ -1,0 +1,190 @@
+1. (3 puntos) Comprensión de Zeos
+
+a) (1 punto) ¿En qué dirección de memoria se encuentra el PCB del 3r proceso del
+vector de tareas? ¿Cómo lo has hallado? 
+ En el gdb: p &task[2]
+
+b) (1 punto) ¿Qué valor tiene el registro ESP antes de ejecutar la 1ª instrucción del
+código de usuario? ¿Cómo lo has hallado? 
+
+b return_gate
+x/16 $esp y el 4to valor deberia ser el valor del esp antes de ir a codigo de usuario
+
+o mas facil:
+b main (el segundo xq el primero es el de system.c)
+info r (mirar el valor de esp)
+
+c) (1 punto) Dado el fichero exam.s con código en ensamblador, indica las líneas
+de comandos para compilar y linkar este fichero en la imagen de sistema. 
+
+Compilamos: as --32 -o exam.o exam.s
+
+Agregamos:
+SYSOBJ = \
+	interrupt.o \
+	... \
+	exam.o
+ejecutar make
+
+o sin el makefile
+
+# 1. Compilar el ensamblador
+as --32 -o exam.o exam.s
+
+# 2. Compilar el resto del sistema
+gcc -m32 -c system.c -o system.o
+# (y otros .o que necesites...)
+
+# 3. Linkar el sistema
+ld -melf_i386 -T system.lds -o system system.o exam.o ...otros.o
+
+# 4. Convertir a binario plano
+objcopy -O binary -R .note -R .comment -S system system.out
+
+# 5. Crear la imagen
+./build bootsect system.out user.out > zeos.bin
+
+2. (2 puntos) Task switch 
+a) ¿Funcionará este código? ¿Por qué? 
+No, no funcionara porque al ser una llamada de codigo en C se debe crear un enlace de retorno a la funcion
+que le ha llamado. Push ebp,mov... desde este modo, no se puede llamar desde C el guardado de resgistros.
+Ademas ret esta obteniendo el valor de ebx, osea %eip = %ebx.
+
+b) En lugar de guardar EBX, ESI y EDI en la pila nos planteamos usar un campo 
+en el PCB. Define una estructura para guardar estos 3 registros y añádela al 
+PCB. 
+
+struct regs_context {
+    unsigned int ebx;
+    unsigned int esi;
+    unsigned int edi;
+};
+
+struct task_struct {
+    // ... otros campos del PCB ...
+    
+    struct regs_context regs;  // <- Aquí guardamos ebx, esi, edi
+
+    // ... más campos del PCB ...
+};
+
+c) Indica el código necesario para implementar las funciones save_regs y 
+restore_regs en lenguaje C. 
+
+ENTRY(get_ebx)
+	mov %ebx, %eax
+	ret
+...
+...
+
+void save_regs(struct task_struct *new) {
+	current()->regs.ebx = get_ebx();
+	current()->regs.esi = ...
+	current()->regs.edi = ...
+}
+
+void rest_ebx(long reg);
+ENTRY(rest_ebx)
+	push 
+
+d) Indica cómo debe cambiar el contexto del proceso idle en su inicialización. 
+
+
+3.  (5 puntos) Mourning my child 
+En libc.h deberia salir void exit(int error);
+
+a) (0,5 puntos) Modifica el wrapper de la llamada exit. 
+
+wrappers.S
+
+b) (0,5 puntos) Implementa el código del wrapper de la llamada waitpid.
+
+wrappers.S
+
+c) (0,5 puntos) Implementa el código del handler de esta llamada a sistema. 
+
+entry.S
+
+d) (0,5 puntos) Indica qué estructuras de datos se tienen que añadir. Indica 
+también las estructuras que deben ser modificadas. Añade el código 
+necesario para inicializarlas.  
+
+- cola de zombies
+
+- Declarar waitpid en libc.h 
+- Inicializar en setIdt() (interrupt.c) setInterruptHandler()
+- En el PCB:
+struct task_struct {
+    ...
+    // NUEVOS CAMPOS:
+    int exit_code;                      // código de salida (lo que pasa exit())
+    struct list_head zombie_children;  // hijos zombis esperando ser recogidos
+    // altres cues
+};
+
+En sys_fork y init_task:
+
+p->exit_code = 0;
+p->has_exited = 0;
+INIT_LIST_HEAD(&p->zombie_children);
+
+En void sys_exit(int error):
+- Marca has_exited = 1 y guarda exit_code.
+- Si su padre está esperando por él (waitpid), lo desbloqueas (al padre). (Usar state??)
+- Si no, añades este proceso a la lista zombie_children del padre.
+
+En sys_waitpid(pid, *status)
+- Buscas el hijo en la lista de hijos del proceso actual.
+- Si ya está terminado (has_exited), copias el exit_code a *status y liberas el PCB.
+- Si no ha terminado, lo bloqueas y se despertará cuando exit() del hijo lo notifique.
+
+e) (0,5 puntos) Implementa la rutina void block(void) para bloquear al proceso 
+actual . 
+
+void block(void) {
+    struct task_struct *curr = current();
+
+    if (curr->state != ST_RUN) return; // Se puede usar state??¿?¿?¿?¿
+
+    // Cambia el estado a bloqueado
+    curr->state = ST_BLOCKED;
+
+    // Añádelo a la cola de procesos bloqueados
+    list_add_tail(&curr->list, &blocked);
+
+    // Llama al planificador para cambiar de proceso
+    schedule();
+}
+
+f) (0,5 puntos) Implementa la rutina void unblock(struct task_struct*pcb) para 
+desbloquear un proceso pasado como parámetro. 
+
+void unblock(struct task_struct *pcb) {
+    // Eliminar el proceso de la cola de bloqueados
+    list_del(&pcb->list);
+
+    // Cambiar su estado a listo (ST_READY)
+    pcb->state = ST_READY;
+
+    // Añadir el proceso a la cola de procesos listos
+    list_add_tail(&pcb->list, &ready);
+}
+
+g) (0,5 puntos) Modifica el código de la rutina sys_exit. 
+Cola de zombies
+
+h) (1 punto) Implementa el código de la rutina de servicio sys_waitpid. 
+i) (0,5 puntos) ¿Es necesario modificar alguna otra llamada a sistema o parte 
+del sistema para implementar por completo esta funcionalidad? Si es así 
+implementa los cambios necesarios. 
+
+
+
+
+
+
+
+
+
+
+
