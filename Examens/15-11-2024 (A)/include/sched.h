@@ -25,6 +25,9 @@ struct task_struct {
   struct list_head child_list;	// lista de hijos
   struct list_head sibling;	// enlace del padre al hijo
   struct task_struct *parent;	// apuntador al padre
+  struct list_head time_on_queue;
+  (void *) func;
+  int ticks; 
 };
 
 union task_union {

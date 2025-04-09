@@ -16,7 +16,7 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 }
 #endif
 
-extern struct list_head blocked;
+extern struct list_head blocked, timeout_queue;
 struct list_head freequeue, readyqueue;
 struct task_struct *idle_task;
 //struct task_struct *init_task;  // Prova, switch_context

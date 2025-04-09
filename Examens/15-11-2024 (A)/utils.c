@@ -2,7 +2,7 @@
 #include <types.h>
 
 #include <mm_address.h>
-
+#define LOGICAL_TEMP 1023
 
 void copy_user_mem(int pid, char* start, char* dest, size) {
 
@@ -17,8 +17,6 @@ void copy_user_mem(int pid, char* start, char* dest, size) {
 
         page_table_entry *my_pt = get_PT(current());
         set_ss_page(my_pt, LOGICAL_TEMP, frame);        // 1023, ultima entrada de la TP
-
-        set_cr3(get_DIR(current()));
 
         // d)
         void *mapped_addr = (void *)(LOGICAL_TEMP << 12);

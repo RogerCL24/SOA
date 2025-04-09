@@ -353,18 +353,13 @@ int sys_timeout(int tics, void (*f)(void)) {
 
 	struct task_struct *ts = current();
 	
-	int remaining = t->timeout_ticks;
+	int remaining = t->ticks;
 
-	if (tics == 0) {
-		ts->timeout_func = NULL;
-		ts->timeout_ticks = 0;
-		ts->timeout_pending = 0;
-		return remaining;
+	t->func = f;
+	t->ticks = tics;
+	struct list_head *lh = ts->time_on_queue;
+	if (lh->prev == NULL && lh->next == NULL) {
+		list_add_tail(&ts->time_on_queue, &timeout_queue);	
 	}
-
-	t->timeout_func = f;
-	t->timeout_ticks = tics;
-	t->timeout_pending = 0;
-	
 	return remaining;
 }
