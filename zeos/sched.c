@@ -81,6 +81,12 @@ void init_idle (void)
 	pcb->PID = 0;	
 	set_quantum(pcb, 10);
 
+	//Inicialitzem les variables per block i unblock
+	pcb->parent = NULL;
+	INIT_LIST_HEAD(&(pcb->children_blocked));
+	INIT_LIST_HEAD(&(pcb->children_unblocked));
+	pcb->pending_unblocks = 0;
+
 	//Inicialitzaem camp dir_pages_baseAaddr (direcció del pageDir)
 	allocate_DIR(pcb);
 
@@ -114,6 +120,13 @@ void init_task1(void)
 	set_quantum(pcb, 10);
 	ticks_current = 10;	
 
+	//Inicialitzem les variables per block i unblock
+	pcb->parent = NULL;
+	INIT_LIST_HEAD(&(pcb->children_blocked));
+	INIT_LIST_HEAD(&(pcb->children_unblocked));
+	INIT_LIST_HEAD(&(pcb->sibiling));
+	pcb->pending_unblocks = 0;
+
 	//Inicialitzaem camp dir_pages_baseAaddr (direcció del pageDir)
 	allocate_DIR(pcb);
 
@@ -137,6 +150,8 @@ void init_sched()
 {
 	//Inicialitzem freequeue
 	INIT_LIST_HEAD(&freequeue);
+	INIT_LIST_HEAD(&readyqueue);
+	INIT_LIST_HEAD(&blocked);
 	//Recorre vector de tasks per afegir tots en freeequeue
 	for (int i = 0; i < NR_TASKS; ++i) 
 		list_add (&(task[i].task.list), &freequeue);
@@ -194,15 +209,12 @@ int needs_sched_rr (void) {
 	//S'ha acabat el quantum i la llista de ready no és buida
 	if (ticks_current <= 0 && !list_empty(&readyqueue)) return 1;
 
-	//El procés es troba blocked
-		//if (current()->state == ST_BLOCKED) return 1;
-
 	//No es canvia de proces
 	else return 0;
 }
 
 void update_process_state_rr (struct task_struct *t, struct list_head *dst_queue) {
-	
+
 	//Si el proces passara a current nomes borrem de la cua en la q esta
 	if (dst_queue == NULL) {
 		list_del(&(t->list));
@@ -215,14 +227,12 @@ void update_process_state_rr (struct task_struct *t, struct list_head *dst_queue
 		list_del(&(t->list));
 		list_add_tail(&(t->list), dst_queue);
 	}
-	//else t->state = ST_RUN;
 }
 
 void sched_next_rr () {
 	struct list_head *lh_new;
 	struct task_struct *ts_new;
 
-	
 	//Si la cua no està buida canviem al primer a la llista
 	if (!list_empty(&readyqueue)) {
 		//Obtenim el primer node de la llista 
@@ -231,7 +241,7 @@ void sched_next_rr () {
 
 		//Obtenim el task struct del primer node
 		ts_new = list_head_to_task_struct(lh_new);
-		if(current() != idle_task) update_process_state_rr(current(), &readyqueue);
+		
 	}
 	//Si la cua està buida canviem a idle
 	else ts_new = idle_task;

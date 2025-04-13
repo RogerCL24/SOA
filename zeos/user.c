@@ -85,6 +85,7 @@ int __attribute__ ((__section__(".text.main")))
   }
 
   //Test exit -> Utilitza dades del fork
+  /*
   if (childId  == 0) {
 	  if(write(1, "Soy el padre otra vez y no desaparezco\n", 39) < 0) perror();
 	  if(write(1, "No he desapaecido!\n", 19) < 0) perror();
@@ -98,10 +99,46 @@ int __attribute__ ((__section__(".text.main")))
   if(write(1, "Ahora solo estoy yo el padre y voy a desaparecer\n", 49) < 0) perror();
   exit();
   if(write(1, "Esto no deberia imprimirse (padre)\n", 35) < 0) perror();
+  */
 
 
+  //Test block i unblock ->Utilitza dades fork
 
-    
+  if (childId < 0) perror();
+  else if (childId == 0) { 
+    if(write(1, "\nSoy el hijo, me voy a bloquear", 32) < 0) perror();
+    block();
+    if(write(1, "\nSoy el hijo y me han desbloqueado\n", 35) < 0) perror();
+    exit();
+  }
+  else {
+    //Pause per que es canvii a fill abans de desbloquejar
+    for (int i = 0; i < 100000; ++i) {
+      itoa(i, buff);
+    }
+    if (write(1, "\nSoy el padre", 13) < 0) perror();
+    if (unblock(333) < 0) {
+      if (write(1, "\nEl hijo no existe",18) < 0) perror();
+    }
+    if (unblock(childId) == 0) {
+      if(write(1, "\nSi existe!, hijo desbloqueado...",33) < 0) perror();
+    }
+  }
+  if (write(1, "\nEsto solo deberia salir una vez!", 33) < 0) perror();
+
+  int pid_for[10];
+  for (int i = 0; i < 10; ++i) {
+    pid_for[i] = fork();
+    if (pid_for[i] < 0) perror();
+    else if (pid_for[i] == 0) {
+      block();
+      exit();
+    }
+  }
+
+  for (int i = 0; i < 10; ++i) {
+    if (unblock(pid_for[i]) == 0) if (write(1, "\nDesbloqueado", 13) < 0) perror();
+  }
 
   while(1) { 
     //Test task_switch

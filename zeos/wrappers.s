@@ -309,3 +309,88 @@ exit_return:
     # No hi ha possible error
  popl %ebp
  ret
+
+
+.globl block; .type block, @function; .align 0; block:
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Guardar %ecx y %edx en user stack
+    pushl %ecx
+    pushl %edx
+
+    #Ponemos codigo syscall
+    movl $21, %eax
+
+    pushl $block_return
+
+    # Se hace fake dinamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+    sysenter
+
+block_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    #Comparamos el return de la syscall
+    cmpl $0, %eax
+ jge block_no_error
+
+    # Se ejcuta si hay error
+ negl %eax # Para obtener codigo error en positivo
+ movl %eax, errno # Pone el error en errno
+ movl $-1, %eax
+
+block_no_error:
+    # Se ejecuta si no hay error o cuando el error se ha guardado en errno
+ popl %ebp
+ ret
+
+
+.globl unblock; .type unblock, @function; .align 0; unblock:
+    pushl %ebp
+    movl %esp, %ebp
+
+
+    mov 0x08(%ebp),%edx
+
+    # Guardar %ecx y %edx en user stack
+    pushl %ecx
+    pushl %edx
+
+    #Ponemos codigo syscall
+    movl $22, %eax
+
+    pushl $unblock_return
+
+    # Se hace fake dinamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+    sysenter
+
+unblock_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    #Comparamos el return de la syscall
+    cmpl $0, %eax
+ jge unblock_no_error
+
+    # Se ejcuta si hay error
+ negl %eax # Para obtener codigo error en positivo
+ movl %eax, errno # Pone el error en errno
+ movl $-1, %eax
+
+unblock_no_error:
+    # Se ejecuta si no hay error o cuando el error se ha guardado en errno
+ popl %ebp
+ ret

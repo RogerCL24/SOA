@@ -19,7 +19,9 @@ extern int zeos_ticks;
 
 extern struct list_head freequeue;
 extern struct list_head readyqueue;
+extern struct list_head blocked;
 
+extern struct task_struct* idle_task;
 
 #define LECTURA 0
 #define ESCRIPTURA 1
@@ -111,6 +113,7 @@ int sys_fork()
     //Ara no fem un set del get sino que com volem que sigin noves utilitzem les pàgines que haviem reservat abans (npages[])
 		set_ss_pag(child_PT, PAG_LOG_INIT_DATA + page, npages[page]);
 	}
+  
   //Encara cal copiar les dades del pare (no es comparteixen però al principi són iguals)
   int TOTAL_SPACE = NUM_PAG_KERNEL + NUM_PAG_DATA + NUM_PAG_CODE;
 
@@ -164,6 +167,15 @@ int sys_fork()
   //Posem en kernel_esp del fill el top de la pila (0x13)
   child->task.kernel_esp =(unsigned long) &(child->stack[KERNEL_STACK_SIZE - 19]);
 
+  //Inicialitzaem les coses de block
+  child->task.pending_unblocks = 0;
+  INIT_LIST_HEAD(&(child->task.children_blocked));
+  INIT_LIST_HEAD(&(child->task.children_unblocked));
+  INIT_LIST_HEAD(&(child->task.sibiling));
+  child->task.parent = current();
+
+  //Afegim el nou procés a la llista de fills del pare (current())
+  list_add_tail(&(child->task.sibiling), &(current()->children_unblocked));
 
   //Afegim al child a la readyqueue i retornem el PID del fill
   list_add_tail(&(child->task.list), &readyqueue);
@@ -176,6 +188,28 @@ void sys_exit()
   struct task_struct *current_pcb = (struct task_struct *)current();
   page_table_entry *current_PT = get_PT(current_pcb);
 
+  //Abans de borrar el proces hem de gestionar les cues que s'utilitzaen per block/unblock
+    //Eliminem el proces current() (el que borrarem) de la llista del pare -> Recordar que sibiling son els nodes de la llista de fills dels pares
+    if (current_pcb->parent != NULL) list_del(&(current_pcb->sibiling));
+
+    //Movem tots els fills blocked de current a Idle
+      
+      //Pos es loop counter / tmp es temporal necesari / Despres tenim el head de la llista sobre el que s'itera
+      //Per tant iterem sobre els unblocked i pos seria element[i]
+      struct list_head *pos, *tmp;    
+      list_for_each_safe(pos, tmp, &current_pcb->children_unblocked) {
+        struct task_struct *child = list_entry(pos, struct task_struct, sibiling);
+        list_del(pos);
+        list_add_tail(&(child->sibiling), &(idle_task->children_unblocked));
+        child->parent = idle_task;
+      }
+
+      list_for_each_safe(pos, tmp, &(current_pcb->children_blocked)) {
+        struct task_struct *child =  list_entry(pos, struct task_struct, sibiling);
+        list_del(pos);
+        list_add_tail(&(child->sibiling), &(idle_task->children_blocked));
+        child->parent = idle_task;
+      }
 
   //Recorrem totes les pagines de data per esborrar els frames fisics i després esborrem les entrades de la TP
   for (int page = 0; page < NUM_PAG_DATA; ++page) {
@@ -233,3 +267,53 @@ int sys_write(int fd, char *buffer, int size) {
 int sys_gettime() {
   return zeos_ticks;
 }
+
+int sys_block() {
+  struct task_struct* current_pcb = current();
+  struct task_struct* parent_pcb = current_pcb->parent;
+
+  //Si hi ha pending unblocks només es decrementa variable i return
+  if (current()->pending_unblocks > 0) {
+    current()->pending_unblocks--;
+    return 0;
+  }
+
+  //Afegim el proces a la blocked queue si el pare es diferent de idle (null)
+  if (parent_pcb != NULL) {
+    list_del(&(current_pcb->sibiling));   //Borrem de la llista actual
+    list_add_tail(&(current_pcb->sibiling), &(parent_pcb->children_blocked));   //Afegim a llista de blocked del pare
+  }
+
+  //Afegim el proces a la blocked queue i canviem de proces
+  update_process_state_rr(current_pcb, &blocked);
+  sched_next_rr();
+  return 0;
+ }
+
+ int sys_unblock(int pid) {
+  struct task_struct* parent_pcb = current();
+
+  //Recorrem tots els fills del pare per trobar el que té PID = pid
+  struct list_head* pos;
+  list_for_each(pos, &(parent_pcb->children_blocked)) {
+    struct task_struct* child = list_entry(pos, struct task_struct, sibiling);
+    if (child->PID == pid) {
+      list_del(&(child->sibiling));
+      list_add_tail(&(child->sibiling), &(parent_pcb->children_unblocked));
+      update_process_state_rr(child, &readyqueue);
+      return 0;
+    }
+  }
+
+  //Si no estaba en blocked alsehores augmentem el pendingUnblocks
+  list_for_each(pos, &(parent_pcb->children_unblocked)) {
+    struct task_struct* child = list_entry(pos, struct task_struct, sibiling);
+    if (child->PID == pid) {
+      child->pending_unblocks++;
+      return 0;
+    }
+  }
+
+  //Retornem -1 si no hem trobat el pid
+  return -1;
+ }

@@ -18,12 +18,17 @@ struct task_struct {
   int PID;			/* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
   struct list_head list;
-
-  //enum state_t state;       //No cal guardar state
   
   unsigned long quantum;
   unsigned long kernel_esp; //Apuntador a la pila de sistema
   
+  //Block i Unblock
+  int pending_unblocks;                 //unblocks pendents
+  struct list_head children_blocked;    //Children blocked
+  struct list_head children_unblocked;  //Children no blocked
+  //Node de germans -> Node que "es posa" a la llista de fills del para (per tant la "llista" esta fromada per els fills d'un proces en concret)
+  struct list_head sibiling;
+  struct task_struct* parent;              //Punter al pare
 };
 
 union task_union {
@@ -65,5 +70,7 @@ void update_sched_data_rr();
 
 int get_quantum (struct task_struct *t);
 void set_quantum (struct task_struct *t, int new_quantum);
+
+void schedule();
 
 #endif  /* __SCHED_H__ */
