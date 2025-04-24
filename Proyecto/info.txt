@@ -1,0 +1,147 @@
+- Soporte teclado desded usuario
+- soporte pantalla
+- implementar threads
+- implementar semaforos
+
+
+- Se pueden ir pisiendo revisiones -> Si te dice profe que si tienes puntuacion milestone
+
+
+KEYBOARD
+	Que keyboard routine modifique ceirta posicion de un buffer por si se apreta una tecla incdica si sepulsa p no una tecla (Despues se usa ese "vector" para ver si se ha pulsado una tecla o no)
+	
+	Cola proceso bloqueados i en interrupcion reloj se comprueba si se ha cumplido el tiempo de despausa
+	
+	
+	
+SOPORTE PANTALLA
+	A partir dir 0xb8000 hay matriz 80 col  x 25 fil  --> Byete + peso es caracter a mostrar, el de menos peso es color caracter y color fondo (4bit back y 4 bit foreground) --> 4000 byte (consola cabe en 1 pagina fisica)
+	
+	Terminal lee esta direccion y imprime en consola
+	
+	Llamada startScreen() --> En TP proceso mapea pag logica a nueva pagina fisica y suponemos que tine misma estructura de 25*80 --> Ahí escribimos "la pantalla"
+	En clock routine lee pagina y la vuelca en la dirección 0xb8000
+	Ver device.c
+	
+
+
+THREADS
+	Lo hacemos pq queremos q procesos sean coperativos (trabajan a la vez para hacer algo) -> Seria ineficiente hacerlo con procesos separados
+	
+	Threads comparten recursos proceso (memoria)
+	
+	El proceso deja de tener importancia (Se ejecutan threads en lugar de procesos)
+	
+	Proceso es contenedor recursos -> Guarda recuross q threads le piden
+	
+	Lo que se ejecuta son los threads --> Planificador planifica threads (unidad minima de planicficacion)
+	
+	Ciclo de vida lo hacen los threads
+	
+	
+	
+	
+	Proce tienen PCB y TP, (Tabla canales, Signals...)	/	Thread tiene: Id (TID), TCB (estructura datos thread, como PCB) Pila usuario, Pila sistema, TLS (Thread local storage) (Zona memoria donde gusradn sus datos -> errno)
+	
+	
+	RECETA PARA CREAR THREAD ZEOS
+	- pthreadCreate (*func)(void* arg), void *arg)
+		P1 -> Te dice en que funcion tinene el codigo del thread
+		P2 -> Parametro que se pasa ala funcion (la del codigo del thread)
+		
+	Implementacion creacion thread como en linux:
+		En linux no hay procesos (no hay pcb) -> el task_union se usa para los threads
+		Por tanto Task union ara son cosas del thread
+		
+		PthreadCreate que hace?
+			Asignar TaskUnion (TCB)
+			Inicializar task union (igual que en fork) -> Copydata del padre al nuevo thread
+				Al hacer esto copiasel puntero a la Tabla de paginas -> Implica que nuevo thread apunta a misma estructura -> Eso seria la abstaccion de proceso (Como tienen iguales estructuras es como si fueran un proceso, pero el concepto de proceso no existe -> Eso si en task_union se mantiene PID)
+			Asignar TID (identificador)	
+			Alocatar pagina para pila usuario (la pila sistema ya esta copiada del "padre")
+			Preparar ctx ejecución
+				Queremos que se ejecute el codigo de la funcion parametro con los argumentos parametro
+				Hay que modificar pilacomo haciamos en fork
+				
+				-Preparar pila usuario -> Creas fram activacion de una funcion 
+					Empilar param de derecha a izquiera y una dir retorno (esto en pila usuario)
+						0
+						arg
+				-Modificar pila sistema para ejecutar esa funcion con esa pila -> sabemos como tenemos pila
+					t_u
+					T-s
+					K-esp
+					---
+					---
+					ebp
+					
+					**VER FOTO
+					
+					
+					El esp del ctx hw lo machacamos y le ponemos la direccion de pila usuario (ver foto)
+					Y k_esp q apunte a ebp
+					
+			Lo pones en ready Queue
+			Ret
+			**Dice que podemos preguntarle las veces que queramos y nos explica las veces que haga falta
+			
+		**realmemnte el codigo es casi igual a fork pero quitando cosas y modificando otras 
+		
+		
+	Hay que implementar sysClone (es lo que existe en linux)
+		syscolne(CLONE_PROCESS / CLONE_THREAD, void (*func)(void *arg), void *Arg,
+			Entonces haces una cosa o otra en fucnion de si quieres clone proceso o thread)
+		Realmente lo q hacen al hacer fork y pthreadCreate es q los dos wrappers llaman a sysclone de una forma o otra)
+		
+		
+		
+		
+		
+SEMAFOROS -> Para evitar race condition (par)
+	Lo que se hace es q cuando un thread toca una variable excluye a los demas de que la toquen. (exclusion mutua)
+	SO da mecanismos para ello (pero hay q hacerlo a mano) -> Semaforos son un ejemplo
+	
+	En zona exclusion mutua se marca con semaforo (cualquiera que entre en zona de exclusion mutua se va a una coloa de block)
+	
+	#Codigos en transparencias (tema 4 arte final)
+	sem_t {
+		int cont
+		lit_head blocked
+	}
+	
+	seminit(sem_t sem, int value) {
+		s->cont=value;
+		INIT..(lista)
+	}
+	
+	sem_wait(semaforo) -> Dice que siguioente zaon es de exclusion mutua (Si no hay nadie en zona ejecuto, si hay alguien me bloqueo)
+	
+	sem_post(semaforo) -> MArca final zona exclusion (yo he acabado si alguien esta bloqueado que se desbloquee)
+	
+	
+	COMO FUNCIONAN?
+	int a = 0;
+	sem_t s;
+	sem_init(&s, 1);
+
+	T1:
+	
+		sem_wait(&s);
+		a++;
+		sem_post(&s);
+		
+	T2:
+	
+		sem_wait(&s);
+		a++;
+		sem_post(&s);
+		
+	**Pensar en el procedimiento cuando se hace cambio thread en zona exclusion mutua
+	
+	
+
+
+ESTADOS (por prioridades)
+	Mirar prioridades en cambio de estado en funcion de prioridades -> Si desbloqueas un proceso y es mas prioritario que el q esta en run pasa a ejecutarse
+
+	
