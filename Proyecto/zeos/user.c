@@ -31,6 +31,15 @@ int __attribute__ ((__section__(".text.main")))
   for (int i = 0; i < 128; ++i) keyboard[i] = 0;
   write(1, "\nHello!\n", 8);
 
+  
+  char* screen = (char*)StartScreen();
+  if (screen == (void*)-1) perror("Error al acceder a la pantalla");
+  else {
+    for (int i = 0; i < 80 * 25; ++i) {
+        screen[i] = ' ';
+    }
+  }
+
 
   //TEST pause
     /*
@@ -42,6 +51,56 @@ int __attribute__ ((__section__(".text.main")))
       if (pause(10000) < 0) perror();
       write(1, "THIRD PAUSE\n", 12);
     */
+
+
+  //TEST StartScreen
+    /*
+
+      if (screen == (void*)-1) perror();
+      else {
+        for (int i = 0; i < 80 * 25; ++i) {
+            screen[i] = ' ';
+        }
+
+        screen[0] = 'H';
+        screen[1] = 'e';
+        screen[2] = 'l';
+        screen[3] = 'l';
+        screen[4] = 'o';
+        screen[5] = ' ';
+        screen[6] = 'W';
+        screen[7] = 'o';
+        screen[8] = 'r';
+        screen[9] = 'l';
+        screen[10] = 'd';
+
+        write(1, "Screen initialized and written!\n", 32);
+
+        for (int i = 0; i < 11; ++i) {
+          buff[i] = screen[i];
+        }
+        buff[11] = '\0';
+
+        write(1, "Wrote in screen: ", 17);
+        write(1, buff, strlen(buff));
+      }
+    */
+
+    screen[0] = 'k';
+    screen[1] = 'e';
+    screen[2] = 'y';
+    screen[3] = 's';
+    screen[4] = ' ';
+    screen[5] = 'p';
+    screen[6] = 'r';
+    screen[7] = 'e';
+    screen[8] = 's';
+    screen[9] = 's';
+    screen[10] = 'e';
+    screen[11] = 'd';
+    screen[12] = ':';
+    screen[13] = ' ';
+
 
   while(1) { 
 
@@ -59,7 +118,9 @@ int __attribute__ ((__section__(".text.main")))
       getpid();
     */
 
+
     //TEST GetKeyboardState y pause
+    /*
       if (GetKeyboardState(keyboard) < 0) perror();
       if (write(1, "\nKeys pressed: ",15) <= 0) perror();
       for (int i = 0; i < 128; ++i) {
@@ -70,7 +131,21 @@ int __attribute__ ((__section__(".text.main")))
         }
       }
 
-      pause(1000);     
+      pause(1000);  
+    */
+
+    
+    //TEST GetKeyboarState, pause i StartScreen
+      //Si aqui fessim un fork no funcionaria pq screen guardaria una pos d'un altre proces, es un problema?
+      
+      if (GetKeyboardState(keyboard) < 0) perror();
+      int pos = 14;
+
+      for (int i = 0; i < 128; ++i) {
+        if (keyboard[i] == 1) screen[pos+=2] = char_map2[i];
+      }
+      for (int i = pos+1; i < 128; ++i) screen[i] = ' ';
+
 
   }
 

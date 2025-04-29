@@ -132,3 +132,15 @@ nok:
  js nok
  popl %ebp
  ret
+
+.globl StartScreen; .type StartScreen, @function; .align 0; StartScreen:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx;
+ movl $7, %eax
+ call syscall_sysenter
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret

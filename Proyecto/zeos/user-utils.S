@@ -125,3 +125,15 @@ ENTRY(pause)
 	js nok	// if (eax < 0) -> 
 	popl %ebp
 	ret
+
+ENTRY(StartScreen)
+	pushl %ebp
+	movl %esp, %ebp
+	pushl %ebx;  // Save EBX, ESI and EDI if modified
+	movl $7, %eax
+	call syscall_sysenter
+	popl %ebx
+	test %eax, %eax
+	js nok	// if (eax < 0) -> 
+	popl %ebp
+	ret

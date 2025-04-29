@@ -25,6 +25,7 @@ struct task_struct {
   int total_quantum;		/* Total quantum of the process */
   struct stats p_stats;		/* Process stats */
   int pause_time;       //Temps que li queda a un procés blocked per desbloquejar
+  void* screen_page;    //Punter a la direccio de la pagina compartida de la pantalla
 };
 
 union task_union {

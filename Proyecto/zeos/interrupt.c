@@ -11,6 +11,8 @@
 
 #include <zeos_interrupt.h>
 
+#include <utils.h>
+
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
@@ -47,12 +49,27 @@ void update_blocked_time() {
   }
 }
 
+void dumpScreen() {
+  Word* screen = (Word *)0xb8000;
+  char* content = (char*)(current()->screen_page);
+  Word color = 0x07;
+
+  for (int i = 0; i < 80*25; ++i) {
+    screen[i] = (color << 8) | content[i];
+  }
+}
+
 void clock_routine()
 {
   zeos_show_clock();
   zeos_ticks ++;
   
+  //Per gestió Keyboard
   update_blocked_time();
+
+  //Per gestió pantalla
+    //La primera entrada a clock_routine encara no estem executant init (Això feia que screen_page no estigués inicialitzat) -> Solucio?
+  if (current()->PID != -1 && current()->screen_page != (void*)-1) dumpScreen();
 
   schedule();
 }
@@ -62,8 +79,12 @@ void keyboard_routine()
   unsigned char c = inb(0x60);
   
   if (!(c&0x80)) {
-    keys[c] = 1;
-    printc_xy(0, 0, char_map[c&0x7f]);
+    keys[c&0x7f] = 1;
+    //printc_xy(0, 0, char_map[c&0x7f]);
+  }
+  else if ((c&0x80)) {
+    keys[c&0x7f] = 0;
+    //printc_xy(0, 0, char_map[c&0x7f]);
   }
   
 }

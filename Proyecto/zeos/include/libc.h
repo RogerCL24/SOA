@@ -31,4 +31,6 @@ int get_stats(int pid, struct stats *st);
 int GetKeyboardState(char* keyboard);
 int pause(int miliseconds);
 
+void* StartScreen();
+
 #endif  /* __LIBC_H__ */

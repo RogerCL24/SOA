@@ -146,6 +146,9 @@ int sys_fork(void)
   /* Queue child process into readyqueue */
   uchild->task.state=ST_READY;
   list_add_tail(&(uchild->task.list), &readyqueue);
+
+  uchild->task.pause_time = 0;
+  uchild->task.screen_page = (void*)-1;
   
   return uchild->task.PID;
 }
@@ -245,11 +248,6 @@ int sys_GetKeyboardState(char* keyboard) {
   //Copiem el vector de sistema al vector d'usuari
   copy_to_user(keys, keyboard, 128);
 
-  //Tornem a posar tot el vector de sistema a 0
-  for (int i = 0; i < 128; ++i) {
-    keys[i] = 0;
-  }
-
   return 0;
 }
 
@@ -258,9 +256,31 @@ int sys_pause (int miliseconds) {
   //Comprobem que el temps sigui > 0
   if (miliseconds < 0) return -EINVAL;
 
-  current()->pause_time = miliseconds;
+  current()->pause_time = miliseconds*0.18;
   update_process_state_rr(current(), &blocked);
   sched_next_rr();
 
   return 0;
+}
+
+
+void* sys_StartScreen() {
+  //Comprovem que no s'hagi fet ja StartScreen, si ja s'ha fet només retornem la direcció
+  if (current()->screen_page != (void*)-1) {
+    return current()->screen_page;
+  }
+
+  //Busquem nou frame (si no hi ha cap error)
+  int frame = alloc_frame();
+  if (frame < 0) return (void*)-EAGAIN;
+
+  //Associem frame a dir lògica
+  page_table_entry* tp = get_PT(current());
+  set_ss_pag(tp, PAG_LOG_INIT_DATA+NUM_PAG_DATA, frame);
+
+  //Guardem al task_struct la direccio de la pantalla
+  current()->screen_page = (void*)((PAG_LOG_INIT_DATA+NUM_PAG_DATA) * PAGE_SIZE);
+
+  //Retornem la direccio equivalent a l'inici de la pagina reservada
+  return (void*)(current()->screen_page);
 }

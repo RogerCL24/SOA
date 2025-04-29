@@ -17,7 +17,7 @@
  .long sys_write
  .long sys_GetKeyboardState
  .long sys_pause
- .long sys_ni_syscall
+ .long sys_StartScreen
  .long sys_ni_syscall
  .long sys_ni_syscall
  .long sys_gettime
