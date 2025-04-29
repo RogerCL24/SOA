@@ -256,7 +256,7 @@ int sys_pause (int miliseconds) {
   //Comprobem que el temps sigui > 0
   if (miliseconds < 0) return -EINVAL;
 
-  current()->pause_time = miliseconds*0.18;
+  current()->pause_time = miliseconds*0.018;
   update_process_state_rr(current(), &blocked);
   sched_next_rr();
 

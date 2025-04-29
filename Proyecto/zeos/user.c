@@ -32,7 +32,7 @@ int __attribute__ ((__section__(".text.main")))
   write(1, "\nHello!\n", 8);
 
   
-  char* screen = (char*)StartScreen();
+  unsigned short* screen = (unsigned short*)StartScreen();
   if (screen == (void*)-1) perror("Error al acceder a la pantalla");
   else {
     for (int i = 0; i < 80 * 25; ++i) {
@@ -86,20 +86,22 @@ int __attribute__ ((__section__(".text.main")))
       }
     */
 
-    screen[0] = 'k';
-    screen[1] = 'e';
-    screen[2] = 'y';
-    screen[3] = 's';
-    screen[4] = ' ';
-    screen[5] = 'p';
-    screen[6] = 'r';
-    screen[7] = 'e';
-    screen[8] = 's';
-    screen[9] = 's';
-    screen[10] = 'e';
-    screen[11] = 'd';
-    screen[12] = ':';
-    screen[13] = ' ';
+    unsigned short color = 0x07;
+
+    screen[0] = color << 8 | 'k';
+    screen[1] = color << 8 | 'e';
+    screen[2] = color << 8 | 'y';
+    screen[3] = color << 8 | 's';
+    screen[4] = color << 8 | ' ';
+    screen[5] = color << 8 | 'p';
+    screen[6] = color << 8 | 'r';
+    screen[7] = color << 8 | 'e';
+    screen[8] = color << 8 | 's';
+    screen[9] = color << 8 | 's';
+    screen[10] = color << 8 | 'e';
+    screen[11] = color << 8 | 'd';
+    screen[12] = color << 8 | ':';
+    screen[13] = color << 8 | ' ';
 
 
   while(1) { 
@@ -136,15 +138,20 @@ int __attribute__ ((__section__(".text.main")))
 
     
     //TEST GetKeyboarState, pause i StartScreen
-      //Si aqui fessim un fork no funcionaria pq screen guardaria una pos d'un altre proces, es un problema?
       
+      //Si aqui fessim un fork no funcionaria pq screen guardaria una pos d'un altre proces, es un problema?  
       if (GetKeyboardState(keyboard) < 0) perror();
       int pos = 14;
 
+      color = 1;
       for (int i = 0; i < 128; ++i) {
-        if (keyboard[i] == 1) screen[pos+=2] = char_map2[i];
+        if (keyboard[i] == 1) {
+          screen[pos] = color << 8 | char_map2[i];
+          pos += 2;
+          ++color;
+        }
       }
-      for (int i = pos+1; i < 128; ++i) screen[i] = ' ';
+      for (int i = pos; i < 128; ++i) screen[i] = ' ';
 
 
   }

@@ -51,11 +51,11 @@ void update_blocked_time() {
 
 void dumpScreen() {
   Word* screen = (Word *)0xb8000;
-  char* content = (char*)(current()->screen_page);
+  Word* content = (Word*)(current()->screen_page);
   Word color = 0x07;
 
   for (int i = 0; i < 80*25; ++i) {
-    screen[i] = (color << 8) | content[i];
+    screen[i] = content[i];
   }
 }
 
