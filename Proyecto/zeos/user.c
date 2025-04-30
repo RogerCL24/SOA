@@ -31,7 +31,6 @@ int __attribute__ ((__section__(".text.main")))
   for (int i = 0; i < 128; ++i) keyboard[i] = 0;
   write(1, "\nHello!\n", 8);
 
-  
   unsigned short* screen = (unsigned short*)StartScreen();
   if (screen == (void*)-1) perror("Error al acceder a la pantalla");
   else {
@@ -86,6 +85,10 @@ int __attribute__ ((__section__(".text.main")))
       }
     */
 
+    pid = getpid;
+    int cpid = fork();
+    if (cpid > 0) {
+
     unsigned short color = 0x07;
 
     screen[0] = color << 8 | 'k';
@@ -102,7 +105,7 @@ int __attribute__ ((__section__(".text.main")))
     screen[11] = color << 8 | 'd';
     screen[12] = color << 8 | ':';
     screen[13] = color << 8 | ' ';
-
+      
 
   while(1) { 
 
@@ -152,8 +155,14 @@ int __attribute__ ((__section__(".text.main")))
         }
       }
       for (int i = pos; i < 128; ++i) screen[i] = ' ';
-
+      pause(1000);
 
   }
+}
+else {
+  while(1) {
+    //pid = getpid();
+  }
+}
 
 }

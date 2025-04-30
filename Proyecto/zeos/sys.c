@@ -113,7 +113,7 @@ int sys_fork(void)
     set_ss_pag(process_PT, PAG_LOG_INIT_CODE+pag, get_frame(parent_PT, PAG_LOG_INIT_CODE+pag));
   }
   /* Copy parent's DATA to child. We will use TOTAL_PAGES-1 as a temp logical page to map to */
-  for (pag=NUM_PAG_KERNEL+NUM_PAG_CODE; pag<NUM_PAG_KERNEL+NUM_PAG_CODE+NUM_PAG_DATA; pag++)
+  for (pag=NUM_PAG_KERNEL+NUM_PAG_CODE+1; pag<NUM_PAG_KERNEL+NUM_PAG_CODE+NUM_PAG_DATA; pag++)  //+1 necesario para no borrar screen_page
   {
     /* Map one child page to parent's address space. */
     set_ss_pag(parent_PT, pag+NUM_PAG_DATA, get_frame(process_PT, pag));
@@ -148,7 +148,10 @@ int sys_fork(void)
   list_add_tail(&(uchild->task.list), &readyqueue);
 
   uchild->task.pause_time = 0;
-  uchild->task.screen_page = (void*)-1;
+
+  int frame_screen_page = get_frame(parent_PT, (int)current()->screen_page / PAGE_SIZE);
+  set_ss_pag(process_PT, PAG_LOG_INIT_DATA+NUM_PAG_DATA, frame_screen_page);
+  uchild->task.screen_page = (void*)((PAG_LOG_INIT_DATA+NUM_PAG_DATA) * PAGE_SIZE);
   
   return uchild->task.PID;
 }
