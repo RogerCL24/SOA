@@ -216,8 +216,12 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 	*(--user_esp) = 0;
 
 	// Contexto hardware
-	((unsigned long *) KERNEL_ESP(new_thread))[-0x01] = (unsigned long) user_esp; 
-	
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x01] = (unsigned long) &user_esp; 	// esp
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x04] = (unsigned long) func;	// eip 
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x12] = (unsigned long) 0;	// ebp 
+
+
+	new_thread->task.register_esp = KERNEL_ESP(new_thread)[-0x12]; 
 	
 
 
