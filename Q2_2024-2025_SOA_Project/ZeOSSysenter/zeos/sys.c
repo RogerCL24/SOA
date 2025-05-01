@@ -204,10 +204,26 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 		list_add_tail(lhcurrent, &freequeue);
 		return -EAGAIN;
 	}
-	set_ss_pag(process_PT, PAG_LOG_INIT_DATA + NUM_PAG_DATA*2 + th_count, new_pag);
+	// Pila de usuario
+	int us_st_pt_entry = PAG_LOG_INIT_DATA + NUM_PAG_DATA*2 + th_count;
+	set_ss_pag(process_PT, us_st_pt_entry, new_pag);
 	++th_count;
-       	return 1;	
+
+	void* user_stack = (void *)us_st_pt_entry << 12;
+	void* user_esp =(void *)user_stack + stack_size;
+
+	*(--user_esp) = param;
+	*(--user_esp) = 0;
+
+	// Contexto hardware
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x01] = (unsigned long) user_esp; 
 	
+	
+
+
+	list_add_tail(&new_thread->task.list, &readyqueue);
+	return new_thread->task.PID;
+
 }
 #define TAM_BUFFER 512
 
