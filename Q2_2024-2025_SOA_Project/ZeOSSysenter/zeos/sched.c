@@ -27,12 +27,15 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 }
 #endif
 
+#define MAX_PRIORITY 40
+
 extern struct list_head blocked;
 
 // Free task structs
 struct list_head freequeue;
 // Ready queue
 struct list_head readyqueue;
+//struct list_head readyqueues[MAX_PRORITY + 1];
 
 void init_stats(struct stats *s)
 {
@@ -112,12 +115,22 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue)
   if (t->state!=ST_RUN) list_del(&(t->list));
   if (dst_queue!=NULL)
   {
-    list_add_tail(&(t->list), dst_queue);
+	/*int prio = t->priority;
+	list_add_tail(&(t->list), &readyqueues[prio]);*/
+    list_add_tail(&(t->list), dst_queue);		// Cambiar
     if (dst_queue!=&readyqueue) t->state=ST_BLOCKED;
     else
     {
       update_stats(&(t->p_stats.system_ticks), &(t->p_stats.elapsed_total_ticks));
       t->state=ST_READY;
+
+      if (t->priority > current()->priority) {
+    	/*int prior = current()->priority;
+    	update_process_state_rr(current(), &readyqueues[prior]);*/
+	
+	update_process_state_rr(current(), &readyqueue); // cambiar
+	sched_next_rr();
+      }
     }
   }
   else t->state=ST_RUN;
@@ -125,14 +138,33 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue)
 
 void sched_next_rr(void)
 {
-  struct list_head *e;
-  struct task_struct *t;
+  struct list_head *e, *best_e = NULL;
+  struct task_struct *t, *best_t = NULL;
+/*
+	for (int i = MAX_PRIORITY; i >= 0; --i) {
+		if (!list_empty(&readyqueues[i])) {
+			struct list_head *e = list_first(&readyqueue[i]);
+			list_del(e);
+			t = list_head_to_task_struct(e);
+			break;  // o while con condicion
+		}		
+
+	}
+	if (!t) t = idle_task;
+*/
 
   if (!list_empty(&readyqueue)) {
-	e = list_first(&readyqueue);
-    list_del(e);
+	  // Hace falta mirar toda la cola?
+	list_for_each(e, &readyqueue) {
+		t = list_head_to_task_struct(e);
+		if (!best_t || t->priority > best_t->priority) {
+			best_t = t;
+			best_e = e;
+		}
+	}
 
-    t=list_head_to_task_struct(e);
+    list_del(best_e);
+    t = best_t;
   }
   else
     t=idle_task;
@@ -152,7 +184,10 @@ void schedule()
   update_sched_data_rr();
   if (needs_sched_rr())
   {
-    update_process_state_rr(current(), &readyqueue);
+    /*int prior = current()->priority;
+    update_process_state_rr(current(), &readyqueues[prior]);*/
+
+    update_process_state_rr(current(), &readyqueue);	// cambiar
     sched_next_rr();
   }
 }
@@ -171,6 +206,7 @@ void init_idle (void)
   init_stats(&c->p_stats);
 
   c->screen_page = (void*)-1;
+  c->priority = 20;
 
   allocate_DIR(c);
 
@@ -199,6 +235,7 @@ void init_task1(void)
 
   c->pause_time = 0;
   c->screen_page = (void*)-1;
+  c->priority = 20;
 
   remaining_quantum=c->total_quantum;
 
@@ -232,8 +269,10 @@ extern char keys[128];
 void init_sched()
 {
   init_freequeue();
-  INIT_LIST_HEAD(&readyqueue);
+  INIT_LIST_HEAD(&readyqueue); // cambiar
   INIT_LIST_HEAD(&blocked);
+/*  for (int i = 0; i <= MAX_PRIORITY; ++i) 
+	  INIT_LIST_HEAD(&readyqueues[i]);*/
 
   for (int i = 0; i < 128; ++i) keys[i] = 0;
 }

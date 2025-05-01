@@ -156,3 +156,16 @@ ENTRY(clone)
 	js nok
 	popl %ebp
 	ret
+
+ENTRY(SetPriority)
+	pushl %ebp
+	movl %esp, %ebp
+	pushl %ebx
+	movl 0x8(%ebp), %ebx 
+	movl $8, %eax
+	call syscall_sysenter
+	popl %ebx
+	test %eax, %eax
+	js nok
+	popl %ebp
+	ret

@@ -29,6 +29,12 @@ int yield();
 int get_stats(int pid, struct stats *st);
 
 int GetKeyboardState(char* keyboard);
+
 int pause(int miliseconds);
+
 void* StartScreen();
+
+int clone(int what, void *(*func)(void*), void *param, int stack_size);
+
+int SetPriority(int priority);
 #endif  /* __LIBC_H__ */

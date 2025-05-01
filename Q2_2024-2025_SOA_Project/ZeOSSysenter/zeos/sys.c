@@ -21,6 +21,8 @@
 #define ESCRIPTURA 1
 #define CLONE_PROCESS 0
 #define CLONE_THREAD 1
+#define MAX_PRIORITY 40
+#define MAX_STACK_SIZE 1024
 
 extern char keys[128];
 extern struct list_head blocked;
@@ -131,6 +133,7 @@ static int do_fork()
 
   uchild->task.PID=++global_PID;
   uchild->task.state=ST_READY;
+  uchild->task.priority=20;		// hereda la prioridad??
 
   int register_ebp;		/* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -174,7 +177,7 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 	if (what == CLONE_THREAD) {
 		if (!func) return -EINVAL;
 
-		if (stack_size <= 0)  // stack_size > MAX_STACK_SIZE hay limite superior?
+		if (stack_size <= 0 || stack_size > MAX_STACK_SIZE) 
 			return -EINVAL;
 		// Verificarmos que el puntero a codigo es accesible
 		if (!access_ok(VERIFY_READ, func, sizeof(void (*)(void*))))
@@ -197,6 +200,7 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 	new_thread->task.state = ST_READY;
 	new_thread->task.PID = ++global_PID;
 	new_thread->task.pause_time = 0;
+	new_thread->task.priority = 20;			//hereda la prioridad??
 	page_table_entry *process_PT = get_PT(&new_thread->task);
 
 	int new_pag = alloc_frame();
@@ -216,14 +220,11 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 	*(--user_esp) = 0;
 
 	// Contexto hardware
-	((unsigned long *) KERNEL_ESP(new_thread))[-0x01] = (unsigned long) &user_esp; 	// esp
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x01] = (unsigned long) user_esp; 	// esp
 	((unsigned long *) KERNEL_ESP(new_thread))[-0x04] = (unsigned long) func;	// eip 
 	((unsigned long *) KERNEL_ESP(new_thread))[-0x12] = (unsigned long) 0;	// ebp 
 
-
 	new_thread->task.register_esp = KERNEL_ESP(new_thread)[-0x12]; 
-	
-
 
 	list_add_tail(&new_thread->task.list, &readyqueue);
 	return new_thread->task.PID;
@@ -352,3 +353,10 @@ void* sys_StartScreen() {
 	return (void*)(current()->screen_page);
 }
 
+void sys_SetPriority(int priority) {
+
+	if (priority < 0 || priority > MAX_PRIORITY)
+		return -EINVAL;
+
+	current()->priority = priority;
+}

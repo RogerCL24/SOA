@@ -26,6 +26,7 @@ struct task_struct {
   struct stats p_stats;		/* Process stats */
   int pause_time;
   void* screen_page;
+  int priority;
 };
 
 union task_union {
