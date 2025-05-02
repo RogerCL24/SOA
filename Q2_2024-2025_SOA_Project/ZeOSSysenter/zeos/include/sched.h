@@ -26,6 +26,9 @@ struct task_struct {
   struct stats p_stats;		/* Process stats */
   int pause_time;
   void* screen_page;
+  int TID;
+  int thread_count;
+  struct task_struct *main_thread;
   int priority;
 };
 

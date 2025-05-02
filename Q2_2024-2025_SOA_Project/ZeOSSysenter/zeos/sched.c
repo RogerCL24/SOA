@@ -207,7 +207,8 @@ void init_idle (void)
 
   c->screen_page = (void*)-1;
   c->priority = 20;
-
+  c->TID=1;
+  c->main_thread = c;
   allocate_DIR(c);
 
   uc->stack[KERNEL_STACK_SIZE-1]=(unsigned long)&cpu_idle; /* Return address */
@@ -236,7 +237,9 @@ void init_task1(void)
   c->pause_time = 0;
   c->screen_page = (void*)-1;
   c->priority = 20;
-
+  c->TID = 1; 
+  c->thread_count=1;
+  c->main_thread=c;
   remaining_quantum=c->total_quantum;
 
   init_stats(&c->p_stats);

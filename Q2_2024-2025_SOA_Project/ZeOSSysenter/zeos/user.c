@@ -1,5 +1,7 @@
 #include <libc.h>
 
+# define CLONE_THREAD 1
+
 char buff[24];
 char char_map2[] =
 {
@@ -20,6 +22,45 @@ char char_map2[] =
 
 
 int pid;
+
+void *thread_func_1(void *arg) {
+    write(1, "Hello from thread 1!\n", 22);
+    return 0;
+}
+
+void test_simple_clone() {
+    int tid = clone(CLONE_THREAD, thread_func_1, 0, 1024);
+    if (tid < 0) write(1, "clone failed\n", 13);
+    pause(100); 
+}
+
+void *thread_func_N(void *arg) {
+    char *msg = (char *)arg;
+    write(1, msg, strlen(msg));
+    return 0;
+}
+
+void test_multiple_threads() {
+    clone(CLONE_THREAD, thread_func_N, "Thread A\n", 1024);
+    clone(CLONE_THREAD, thread_func_N, "Thread B\n", 1024);
+    clone(CLONE_THREAD, thread_func_N, "Thread C\n", 1024);
+    pause(200);
+}
+
+void *prio_func(void *arg) {
+    char *msg = (char *)arg;
+    write(1, msg, strlen(msg));
+    pause(50); 
+    return 0;
+}
+
+void test_priority() {
+    clone(CLONE_THREAD, prio_func, "LOW\n", 1024); 
+    int tid = clone(CLONE_THREAD, prio_func, "HIGH\n", 1024); 
+    SetPriority(5); 
+    pause(300);
+}
+
 
 int __attribute__ ((__section__(".text.main")))
   main(void)
@@ -47,8 +88,11 @@ int __attribute__ ((__section__(".text.main")))
       write(1, "THIRD PAUSE\n", 12);
 */
 
-pid = getpid();
-int cpid = fork();
+
+   test_simple_clone();
+
+    pid = getpid();
+    int cpid = fork();
     if (cpid > 0) {
 
     unsigned short color = 0x07;

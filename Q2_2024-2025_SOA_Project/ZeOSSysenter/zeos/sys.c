@@ -27,7 +27,6 @@
 extern char keys[128];
 extern struct list_head blocked;
 void * get_ebp();
-int th_count = 1;
 
 int check_fd(int fd, int permissions)
 {
@@ -133,7 +132,10 @@ static int do_fork()
 
   uchild->task.PID=++global_PID;
   uchild->task.state=ST_READY;
-  uchild->task.priority=20;		// hereda la prioridad??
+  uchild->task.priority=20;		// hereda la prioridad?
+  uchild->task.TID=1;
+  uchild->task.thread_count=1;
+  uchild->task.main_thread = &uchild->task;
 
   int register_ebp;		/* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -196,9 +198,10 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 	list_del(lhcurrent);
 	new_thread = (union task_union*) list_head_to_task_struct(lhcurrent);
 	copy_data(parent, new_thread, sizeof(union task_union));
-
+	
+	int th_count = new_thread->task.main_thread->thread_count;
 	new_thread->task.state = ST_READY;
-	new_thread->task.PID = ++global_PID;
+	++new_thread->task.TID;
 	new_thread->task.pause_time = 0;
 	new_thread->task.priority = 20;			//hereda la prioridad??
 	page_table_entry *process_PT = get_PT(&new_thread->task);
@@ -208,15 +211,16 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 		list_add_tail(lhcurrent, &freequeue);
 		return -EAGAIN;
 	}
+
 	// Pila de usuario
 	int us_st_pt_entry = PAG_LOG_INIT_DATA + NUM_PAG_DATA*2 + th_count;
 	set_ss_pag(process_PT, us_st_pt_entry, new_pag);
-	++th_count;
+	++new_thread->task.main_thread->thread_count;
 
-	void* user_stack = (void *)us_st_pt_entry << 12;
-	void* user_esp =(void *)user_stack + stack_size;
+	void* user_stack = (void *)((unsigned int)us_st_pt_entry << 12);
+	unsigned int* user_esp =(unsigned int *)user_stack + stack_size;
 
-	*(--user_esp) = param;
+	*(--user_esp) = (unsigned int)param;
 	*(--user_esp) = 0;
 
 	// Contexto hardware
@@ -224,10 +228,10 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 	((unsigned long *) KERNEL_ESP(new_thread))[-0x04] = (unsigned long) func;	// eip 
 	((unsigned long *) KERNEL_ESP(new_thread))[-0x12] = (unsigned long) 0;	// ebp 
 
-	new_thread->task.register_esp = KERNEL_ESP(new_thread)[-0x12]; 
+	new_thread->task.register_esp = (unsigned long) &(new_thread->stack[KERNEL_STACK_SIZE - 0x12]); 
 
 	list_add_tail(&new_thread->task.list, &readyqueue);
-	return new_thread->task.PID;
+	return new_thread->task.TID;
 
 }
 #define TAM_BUFFER 512
@@ -353,10 +357,11 @@ void* sys_StartScreen() {
 	return (void*)(current()->screen_page);
 }
 
-void sys_SetPriority(int priority) {
+int sys_SetPriority(int priority) {
 
 	if (priority < 0 || priority > MAX_PRIORITY)
 		return -EINVAL;
 
 	current()->priority = priority;
+	return 0;
 }
