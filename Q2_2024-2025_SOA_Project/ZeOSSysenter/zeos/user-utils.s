@@ -176,3 +176,13 @@ nok:
  js nok
  popl %ebp
  ret
+
+.globl pthread_exit; .type pthread_exit, @function; .align 0; pthread_exit:
+ pushl %ebp
+ movl %esp, %ebp
+ movl $9, %eax
+ call syscall_sysenter
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret

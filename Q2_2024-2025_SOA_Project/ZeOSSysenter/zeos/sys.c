@@ -22,7 +22,7 @@
 #define CLONE_PROCESS 0
 #define CLONE_THREAD 1
 #define MAX_PRIORITY 40
-#define MAX_STACK_SIZE 1024
+#define MAX_STACK_SIZE 4096 
 
 extern char keys[128];
 extern struct list_head blocked;
@@ -105,7 +105,7 @@ static int do_fork()
       list_add_tail(lhcurrent, &freequeue);
       
       /* Return error */
-      return -EAGAIN; 
+    return -EAGAIN; 
     }
   }
 
@@ -135,7 +135,7 @@ static int do_fork()
   uchild->task.priority=20;		// hereda la prioridad?
   uchild->task.TID=1;
   uchild->task.thread_count=1;
-  uchild->task.main_thread = &uchild->task;
+  uchild->task.main_thread = &uchild->task;	// main_thread es él mismo
 
   int register_ebp;		/* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -153,6 +153,9 @@ static int do_fork()
 
   /* Set stats to 0 */
   init_stats(&(uchild->task.p_stats));
+  
+  INIT_LIST_HEAD(&(uchild->task.my_threads));
+  INIT_LIST_HEAD(&(uchild->task.sibling));
 
   /* Queue child process into readyqueue */
   uchild->task.state=ST_READY;
@@ -188,50 +191,62 @@ int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
 			return -EFAULT;
 	}
 
-	struct task_struct *parent = current();
-	union task_union *new_thread;
-	struct list_head *lhcurrent = NULL;
-
 	if (list_empty(&freequeue)) return -ENOMEM;
+
+	struct list_head *lhcurrent = NULL;
 
 	lhcurrent = list_first(&freequeue);
 	list_del(lhcurrent);
-	new_thread = (union task_union*) list_head_to_task_struct(lhcurrent);
-	copy_data(parent, new_thread, sizeof(union task_union));
 	
-	int th_count = new_thread->task.main_thread->thread_count;
-	new_thread->task.state = ST_READY;
-	++new_thread->task.TID;
-	new_thread->task.pause_time = 0;
-	new_thread->task.priority = 20;			//hereda la prioridad??
-	page_table_entry *process_PT = get_PT(&new_thread->task);
-
 	int new_pag = alloc_frame();
 	if (new_pag == -1) {
 		list_add_tail(lhcurrent, &freequeue);
 		return -EAGAIN;
 	}
 
+	struct task_struct *parent = current();
+	union task_union *new_thread;
+
+	new_thread = (union task_union*) list_head_to_task_struct(lhcurrent);
+	copy_data(parent, new_thread, sizeof(union task_union));
+
+	// Se supone el caso donde un thread secundario crea otro thread
+	struct task_struct *main_thread = current()->main_thread;
+
+	int th_count = main_thread->thread_count;
+	new_thread->task.state = ST_READY;
+	++new_thread->task.TID;
+	new_thread->task.pause_time = 0;
+	new_thread->task.priority = 20;			//hereda la prioridad??
+	page_table_entry *process_PT = get_PT(&new_thread->task);
+	INIT_LIST_HEAD(&(new_thread->task.sibling));
+	INIT_LIST_HEAD(&(new_thread->task.my_threads));
+	
+
+	// El main_thread es el que controla los threads del proceso
+	list_add_tail(&(new_thread->task.sibling), &(main_thread->my_threads));
+
 	// Pila de usuario
 	int us_st_pt_entry = PAG_LOG_INIT_DATA + NUM_PAG_DATA*2 + th_count;
 	set_ss_pag(process_PT, us_st_pt_entry, new_pag);
-	++new_thread->task.main_thread->thread_count;
+	++main_thread->thread_count;
 
-	void* user_stack = (void *)((unsigned int)us_st_pt_entry << 12);
-	unsigned int* user_esp =(unsigned int *)user_stack + stack_size;
-
-	*(--user_esp) = (unsigned int)param;
-	*(--user_esp) = 0;
+	unsigned int stack_top = (us_st_pt_entry << 12) + stack_size;
+	unsigned int* user_esp = (unsigned int *)stack_top;
+	
+	user_esp -= sizeof(Byte);
+	*(user_esp) = (unsigned int)param;
+	user_esp -= sizeof(Byte);
+	*(user_esp) = 0;
 
 	// Contexto hardware
-	((unsigned long *) KERNEL_ESP(new_thread))[-0x01] = (unsigned long) user_esp; 	// esp
-	((unsigned long *) KERNEL_ESP(new_thread))[-0x04] = (unsigned long) func;	// eip 
-	((unsigned long *) KERNEL_ESP(new_thread))[-0x12] = (unsigned long) 0;	// ebp 
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x02] = (unsigned long) user_esp;	// esp
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x05] = (unsigned long) func;	// eip 
 
 	new_thread->task.register_esp = (unsigned long) &(new_thread->stack[KERNEL_STACK_SIZE - 0x12]); 
 
 	list_add_tail(&new_thread->task.list, &readyqueue);
-	return new_thread->task.TID;
+	return 0;
 
 }
 #define TAM_BUFFER 512
@@ -283,12 +298,16 @@ void sys_exit()
     free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
     del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
   }
-  
+ 
+
+
   /* Free task_struct */
   list_add_tail(&(current()->list), &freequeue);
-  
+ 
+
   current()->PID=-1;
-  
+  current()->TID=-1;
+  current()->dir_pages_baseAddr=NULL;
   /* Restarts execution of the next process */
   sched_next_rr();
 }
@@ -364,4 +383,31 @@ int sys_SetPriority(int priority) {
 
 	current()->priority = priority;
 	return 0;
+}
+
+int sys_pthread_exit() {
+	struct task_struct *ts = current();
+	union task_union *tu = (union task_union*) ts;
+	// Si es el thread principal y aun quedan threads disponibles no puede ser eliminado
+	if (ts->main_thread == ts && !list_empty(&ts->my_threads)) {
+		return -1;
+	}
+	list_del(&ts->sibling);
+	// Deberia restar el counter pero creo que se acabara eliminando del TCB
+
+	unsigned long user_esp = tu->stack[KERNEL_STACK_SIZE - 1];  // reg esp
+	unsigned int user_stack_page = user_esp >> 12;
+	page_table_entry *pt = get_PT(ts);
+	free_frame(get_frame(pt, user_stack_page));	// solo libera 1 pag :(
+	del_ss_pag(pt, user_stack_page);
+
+
+	ts->PID=-1;
+	ts->TID=-1;
+	update_process_state_rr(ts, &freequeue);
+	sched_next_rr();
+
+	return 0;
+
+
 }

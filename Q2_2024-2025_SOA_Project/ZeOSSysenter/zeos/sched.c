@@ -209,6 +209,8 @@ void init_idle (void)
   c->priority = 20;
   c->TID=1;
   c->main_thread = c;
+  INIT_LIST_HEAD(&c->my_threads);
+  INIT_LIST_HEAD(&c->sibling);
   allocate_DIR(c);
 
   uc->stack[KERNEL_STACK_SIZE-1]=(unsigned long)&cpu_idle; /* Return address */
@@ -240,6 +242,8 @@ void init_task1(void)
   c->TID = 1; 
   c->thread_count=1;
   c->main_thread=c;
+  INIT_LIST_HEAD(&c->my_threads);
+  INIT_LIST_HEAD(&c->sibling);
   remaining_quantum=c->total_quantum;
 
   init_stats(&c->p_stats);

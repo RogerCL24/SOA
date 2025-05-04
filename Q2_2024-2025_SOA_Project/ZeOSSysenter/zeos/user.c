@@ -24,41 +24,66 @@ char char_map2[] =
 int pid;
 
 void *thread_func_1(void *arg) {
-    write(1, "Hello from thread 1!\n", 22);
-    return 0;
+    if (*(int*)arg == 1) 
+    	write(1, "Hello from thread 1!\n", 22);
+    pthread_exit();
 }
 
 void test_simple_clone() {
-    int tid = clone(CLONE_THREAD, thread_func_1, 0, 1024);
-    if (tid < 0) write(1, "clone failed\n", 13);
-    pause(100); 
+    int val = 1;
+    int tid = clone(CLONE_THREAD, thread_func_1, &val, 1024);
+    if (tid < 0) {
+	write(1, "clone failed\n", 13);
+    	perror();
+    }
+    pause(50);
+    write(1, "Done boss\n", 10);
 }
 
 void *thread_func_N(void *arg) {
-    char *msg = (char *)arg;
+   
+    char* msg = (char *)arg;
     write(1, msg, strlen(msg));
-    return 0;
+    pthread_exit();
 }
 
 void test_multiple_threads() {
-    clone(CLONE_THREAD, thread_func_N, "Thread A\n", 1024);
-    clone(CLONE_THREAD, thread_func_N, "Thread B\n", 1024);
-    clone(CLONE_THREAD, thread_func_N, "Thread C\n", 1024);
+    int tid =  clone(CLONE_THREAD, thread_func_N, "Thread A\n", 1024);
+    if (tid < 0) write(1, "clone failed\n", 13);
+    tid = clone(CLONE_THREAD, thread_func_N, "Thread B\n", 1024);
+    if (tid < 0) write(1, "clone failed\n", 13);
+    tid = clone(CLONE_THREAD, thread_func_N, "Thread C\n", 1024);
+    if (tid < 0) write(1, "clone failed\n", 13);
     pause(200);
+   write(1, "Done boss, multiple\n", 20);
 }
 
 void *prio_func(void *arg) {
-    char *msg = (char *)arg;
-    write(1, msg, strlen(msg));
-    pause(50); 
-    return 0;
+    int val = *((int*)arg);   // race condition...
+    if (val == 0) {
+        SetPriority(25);   // LOW
+        pause(1);
+    }
+    else
+        SetPriority(30);  // HIGH
+    
+    if (val == 0)
+	    for (int i = 0; i < 10; ++i) 
+        	write(1, "LOW\n", 4);
+    else
+	    for (int i = 0; i < 10; ++i) 
+        	write(1, "HIGH\n", 5);
+
+    pthread_exit();
 }
 
 void test_priority() {
-    clone(CLONE_THREAD, prio_func, "LOW\n", 1024); 
-    int tid = clone(CLONE_THREAD, prio_func, "HIGH\n", 1024); 
-    SetPriority(5); 
-    pause(300);
+    int val1 = 0;
+    clone(CLONE_THREAD, prio_func, &val1, 1024);  // LOW
+    int val2 = 1;
+    clone(CLONE_THREAD, prio_func, &val2, 1024);  // HIGH
+    pause(1);
+    write(1, "HIGH GOES BEFORE, RIGHT?\n", 25);
 }
 
 
@@ -89,8 +114,9 @@ int __attribute__ ((__section__(".text.main")))
 */
 
 
-   test_simple_clone();
-
+    test_simple_clone();
+    test_multiple_threads();
+    test_priority();
     pid = getpid();
     int cpid = fork();
     if (cpid > 0) {

@@ -19,7 +19,7 @@
  .long sys_pause
  .long sys_StartScreen
  .long sys_SetPriority
- .long sys_ni_syscall
+ .long sys_pthread_exit
  .long sys_gettime
  .long sys_ni_syscall
  .long sys_ni_syscall

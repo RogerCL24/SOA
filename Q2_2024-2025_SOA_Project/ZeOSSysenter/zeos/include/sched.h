@@ -29,6 +29,8 @@ struct task_struct {
   int TID;
   int thread_count;
   struct task_struct *main_thread;
+  struct list_head my_threads;		// lista con los threads del proceso
+  struct list_head sibling;		// enlace del padre al hijo
   int priority;
 };
 

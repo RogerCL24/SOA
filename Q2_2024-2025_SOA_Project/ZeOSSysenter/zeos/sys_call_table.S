@@ -11,7 +11,7 @@ ENTRY (sys_call_table)
 	.long sys_pause	//6
 	.long sys_StartScreen	//7
 	.long sys_SetPriority	//8
-	.long sys_ni_syscall	//9
+	.long sys_pthread_exit	//9
 	.long sys_gettime	//10
 	.long sys_ni_syscall	//11
 	.long sys_ni_syscall	//12

@@ -37,4 +37,6 @@ void* StartScreen();
 int clone(int what, void *(*func)(void*), void *param, int stack_size);
 
 int SetPriority(int priority);
+
+int pthread_exit();
 #endif  /* __LIBC_H__ */

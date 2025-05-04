@@ -169,3 +169,13 @@ ENTRY(SetPriority)
 	js nok
 	popl %ebp
 	ret
+
+ENTRY(pthread_exit)
+	pushl %ebp
+	movl %esp, %ebp
+	movl $9, %eax
+	call syscall_sysenter
+	test %eax, %eax
+	js nok
+	popl %ebp
+	ret
