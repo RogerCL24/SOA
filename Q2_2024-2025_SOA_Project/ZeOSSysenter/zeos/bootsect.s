@@ -104,9 +104,6 @@ go:	mov	di,#0x4000-12	! 0x4000 is arbitrary value >= length of
 	mov	bp,#msg1
 	mov	ax,#0x1301	! write string, move cursor
 	int	0x10
-	mov	ah,#0x01	! Set cursor lines
-	mov	ch,#0x30	! Invalid upper value
-	int	0x10		! Delete cursor
 
 ! ok, we've written the message, now
 ! we want to load the system (at 0x10000)
@@ -213,7 +210,7 @@ a20_wait:
 ! reasons why it might be a good idea. It won't hurt in any case.
 
 	mov	eax,#1		! protected mode (PE) bit
-	mov	cr0,eax		! a partir del i386 aix�ja � possible fer-ho
+	mov	cr0,eax		! a partir del 1 aix�ja � possible fer-ho
 
 ! Well, that certainly wasn't fun :-(. Hopefully it works, and we don't
 ! need no steenking BIOS anyway (except for the initial loading :-).

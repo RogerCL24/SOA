@@ -74,8 +74,8 @@ int access_ok(int type, const void * addr, unsigned long size)
   {
     case VERIFY_WRITE:
       /* Should suppose no support for automodifyable code */
-      if ((addr_ini>=USER_FIRST_PAGE)&&
-          (addr_fin<=USER_FIRST_PAGE+NUM_PAG_DATA))
+      if ((addr_ini>=USER_FIRST_PAGE+NUM_PAG_CODE)&&
+          (addr_fin<=USER_FIRST_PAGE+NUM_PAG_CODE+NUM_PAG_DATA))
 	  return 1;
     default:
       if ((addr_ini>=USER_FIRST_PAGE)&&
@@ -131,18 +131,29 @@ unsigned long get_ticks(void) {
         return ticks;
 }
 
-void itoa_hexa(int a, char *b) {
+void memset(void *s, unsigned char c, int size)
+{
+  unsigned char *m=(unsigned char *)s;
+  
+  int i;
+  
+  for (i=0; i<size; i++)
+  {
+    m[i]=c;
+  }
+}
+
+void itoa_hexa(int num, char *buff) {
 	static const char hexdigits[] = "0123456789ABCDEF";
-	char *start = b;
-
+	char *start = buff;
 	do {
-		*b++ = hexdigits[a%16];
-		a /= 16;
-	} while (a > 0);
+		*buff++ = hexdigits[num%16];
+		num /= 16;
+	} while (num > 0);
 	
-	*b = '\0';
+	*buff = '\0';
 
-	for (char *end = b - 1; start < end; start++, end--) {
+	for (char *end = buff - 1; start < end; start++, end--) {
 		char temp = *start;
 		*start = *end;
 		*end = temp;

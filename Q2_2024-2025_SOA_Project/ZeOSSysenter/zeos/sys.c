@@ -13,26 +13,42 @@
 
 #include <sched.h>
 
+#include <p_stats.h>
+
 #include <errno.h>
-
-extern int zeos_ticks;
-extern struct list_head freequeue, readyqueue;
-extern struct list_head blocked;
-
 
 #define LECTURA 0
 #define ESCRIPTURA 1
+#define CLONE_PROCESS 0
+#define CLONE_THREAD 1
+#define MAX_PRIORITY 40
+#define MAX_STACK_SIZE 65536 
+#define USED_REGION NUM_PAG_CODE + NUM_PAG_DATA + NUM_PAG_KERNEL
+
+extern char keys[128];
+extern struct list_head blocked;
+void * get_ebp();
 
 int check_fd(int fd, int permissions)
 {
-  if (fd!=1) return -9; /*EBADF*/
-  if (permissions!=ESCRIPTURA) return -13; /*EACCES*/
+  if (fd!=1) return -EBADF; 
+  if (permissions!=ESCRIPTURA) return -EACCES; 
   return 0;
+}
+
+void user_to_system(void)
+{
+  update_stats(&(current()->p_stats.user_ticks), &(current()->p_stats.elapsed_total_ticks));
+}
+
+void system_to_user(void)
+{
+  update_stats(&(current()->p_stats.system_ticks), &(current()->p_stats.elapsed_total_ticks));
 }
 
 int sys_ni_syscall()
 {
-	return -38; /*ENOSYS*/
+	return -ENOSYS; 
 }
 
 int sys_getpid()
@@ -40,328 +56,415 @@ int sys_getpid()
 	return current()->PID;
 }
 
-int ret_from_fork() {
-	return 0;
+int global_PID=1000;
+
+int ret_from_fork()
+{
+  return 0;
 }
-int globalpid = 100;
-int sys_fork()
-{	
-	/*
-	 * Primero de todo comprobamos si hay algun PCB libre en freequeue
-	 * , de lo contrario, devolvemos error de no memory
-	 */
-	if(list_empty(&freequeue)) return -ENOMEM;
-	
-	/*
-	 * Si hay PCBs libres, reservamos 1 para el nuevo proceso creado
-	 * y lo borramos de freequeue
-	 */
-	struct list_head *lh = list_first(&freequeue);
-	list_del(lh);
 
-	/*
-	 * Copiamos el PCB del padre al hijo.
-	 * Primero obtenemos "child", el task_union del PCB del hijo
-	 * Segundo, copiamos "current()" a "child", sus PCBs
-	 */
-	union task_union *child = (union task_union*) list_head_to_task_struct(lh);
-	copy_data(current(), child, sizeof(union task_union));
+int find_free_stack_region(page_table_entry *PT, int from, int pages_needed, struct task_struct *main_thread) {
 
-	/*
-	 * Cada proceso ha de tener su directorio de paginas.
-	 * Asignamos uno nuevo al hijo.
-	 */
-	allocate_DIR((struct task_struct*) child);
-
-
-	/* 
-	 * Numero de paginas de data + stack ha reservar para el hijo
-	 */
-	int npages[NUM_PAG_DATA];
-
-	for(int i = 0; i < NUM_PAG_DATA; ++i) {
-		/*
-		 * Reservamos una pagina fisica nueva.  
-		 * alloc_frame devuelve el numero de pagina asignada
-		 */ 
-		npages[i] = alloc_frame(); 	 	
-						
-		if (npages[i] < 0) {		
+ struct list_head* thread_list = &main_thread->my_threads;
+ for (int i = from; i < TOTAL_PAGES; ++i) {
+	 // primera pagina libre
+	if (PT[i].entry == 0) {
+		int new_start = i;
+		int new_end = i + pages_needed;
+		struct list_head *pos;
+		int conflict = 0;
+		// Comprobar si choca con alguna user_stack de algun thread
+		list_for_each(pos, thread_list) {
+			struct task_struct *thr = list_head_to_task_struct(pos);
 			/*
-			 * Si no hay memoria disponible alloc_frame devuelve valor negativo. 
-			 * Si hubiesemos reservado 3 paginas y la 4 da error, debemos 
-			 * liberar la 3 paginas anteriores para no dejar memoria reservada
-			 * inutilmente.
+			 * _______________ thr_start
 			 *
-			 * free_frame(@dirPag) hace el trabajo de liberar
-			 * list_add_tail(list_head pcbField, list_head queue) devolvemos el
-			 * PCB a la freequeue, el hijo no se creara porque no hemos podido
-			 * reservar memoria
-			 * EAGAIN error de memoria insuficiente para crear el hijo, pero
-			 * si se intenta más tarde puede funcionar.
-			 */			
-			for (int j = 0; j < i; j++) free_frame(npages[j]); 
-			list_add_tail(&child->task.list, &freequeue);
-			return -EAGAIN;
+			 *  USER_STACK
+			 * _______________ thr_end
+			 *
+			 */
+			int thr_start = ((unsigned int)thr->first_stack_page) >> 12;
+			int thr_end = thr_start + thr->user_stack_pages;
 
+			if (!(new_end <= thr_start || new_start >= thr_end)) {
+				conflict = 1;
+				i = thr_end - 1;
+				break;
+			}
+
+
+		}
+		if (!conflict) return i;
+	}
+
+ }
+ return -1;
+
+}
+
+
+static int do_fork() 
+{
+  struct list_head *lhcurrent = NULL;
+  union task_union *uchild;
+  
+  /* Any free task_struct? */
+  if (list_empty(&freequeue)) return -ENOMEM;
+
+  lhcurrent=list_first(&freequeue);
+  
+  list_del(lhcurrent);
+  
+  uchild=(union task_union*)list_head_to_task_struct(lhcurrent);
+  
+  /* Copy the parent's task struct to child's */
+  copy_data(current(), uchild, sizeof(union task_union));
+  
+  /* new pages dir */
+  allocate_DIR((struct task_struct*)uchild);
+  
+  /* Allocate pages for DATA+STACK */
+  int new_ph_pag, pag, i;
+  page_table_entry *process_PT = get_PT(&uchild->task);
+  for (pag=0; pag<NUM_PAG_DATA; pag++)
+  {
+    new_ph_pag=alloc_frame();
+    if (new_ph_pag!=-1) /* One page allocated */
+    {
+      set_ss_pag(process_PT, PAG_LOG_INIT_DATA+pag, new_ph_pag);
+    }
+    else /* No more free pages left. Deallocate everything */
+    {
+      /* Deallocate allocated pages. Up to pag. */
+      for (i=0; i<pag; i++)
+      {
+        free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
+        del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+      }
+      /* Deallocate task_struct */
+      list_add_tail(lhcurrent, &freequeue);
+      
+      /* Return error */
+    return -EAGAIN; 
+    }
+  }
+
+  /* Copy parent's SYSTEM and CODE to child. */
+  page_table_entry *parent_PT = get_PT(current());
+  int temp_entry = find_free_stack_region(parent_PT, USED_REGION + 1, NUM_PAG_DATA, current()->main_thread);
+  if (temp_entry == -1) return -EFAULT;
+
+  for (pag=0; pag<NUM_PAG_KERNEL; pag++)
+  {
+    set_ss_pag(process_PT, pag, get_frame(parent_PT, pag));
+  }
+  for (pag=0; pag<NUM_PAG_CODE; pag++)
+  {
+    set_ss_pag(process_PT, PAG_LOG_INIT_CODE+pag, get_frame(parent_PT, PAG_LOG_INIT_CODE+pag));
+  }
+
+  int init = NUM_PAG_KERNEL + NUM_PAG_CODE;
+  /* Copy parent's DATA to child. We will use TOTAL_PAGES-1 as a temp logical page to map to */
+  for (pag=0; pag<NUM_PAG_DATA; pag++)
+  {
+    /* Map one child page to parent's address space. */
+    set_ss_pag(parent_PT, pag+temp_entry, get_frame(process_PT, pag+init));
+    copy_data((void*)((pag+init)<<12), (void*)((pag+temp_entry)<<12), PAGE_SIZE);
+    del_ss_pag(parent_PT, pag+temp_entry);
+  }
+
+  /* Deny access to the child's memory space */
+  set_cr3(get_DIR(current()));
+
+  uchild->task.PID=++global_PID;
+  uchild->task.state=ST_READY;
+  uchild->task.priority=20;		// hereda la prioridad?
+  uchild->task.TID=1;
+  uchild->task.next_TID = 2;	
+  uchild->task.main_thread = &uchild->task;	// main_thread es él mismo
+  uchild->task.user_stack_pages = 0;
+  uchild->task.first_stack_page = NULL;
+
+  int register_ebp;		/* frame pointer */
+  /* Map Parent's ebp to child's stack */
+  register_ebp = (int) get_ebp();
+  register_ebp=(register_ebp - (int)current()) + (int)(uchild);
+
+  uchild->task.register_esp=register_ebp + sizeof(DWord);
+
+  DWord temp_ebp=*(DWord*)register_ebp;
+  /* Prepare child stack for context switch */
+  uchild->task.register_esp-=sizeof(DWord);
+  *(DWord*)(uchild->task.register_esp)=(DWord)&ret_from_fork;
+  uchild->task.register_esp-=sizeof(DWord);
+  *(DWord*)(uchild->task.register_esp)=temp_ebp;
+
+  /* Set stats to 0 */
+  init_stats(&(uchild->task.p_stats));
+  
+  INIT_LIST_HEAD(&(uchild->task.my_threads));
+  INIT_LIST_HEAD(&(uchild->task.sibling));
+
+  /* Queue child process into readyqueue */
+  uchild->task.state=ST_READY;
+  list_add_tail(&(uchild->task.list), &readyqueue);
+
+  uchild->task.pause_time = 0;
+  
+  int frame_screen_page = get_frame(parent_PT, (int)current()->screen_page >> 12);
+  set_ss_pag(process_PT, USED_REGION, frame_screen_page);
+  uchild->task.screen_page = (void*)((USED_REGION) << 12);
+
+  
+  return uchild->task.PID;
+}
+
+int sys_clone(int what, void *(*func)(void *), void *param, int stack_size)
+{
+	if (what != CLONE_PROCESS && what != CLONE_THREAD) return -EINVAL;
+
+	if (what == CLONE_PROCESS) {
+		return do_fork();
+	}
+
+	if (what == CLONE_THREAD) {
+		if (!func) return -EINVAL;
+
+		if (stack_size <= 0 || stack_size > MAX_STACK_SIZE) 
+			return -EINVAL;
+		// Verificarmos que el puntero a codigo es accesible
+		if (!access_ok(VERIFY_READ, func, sizeof(void (*)(void*))))
+			return -EFAULT;
+		if (param && !access_ok(VERIFY_READ, param, sizeof(void*)))
+			return -EFAULT;
+	}
+
+	if (list_empty(&freequeue)) return -ENOMEM;
+
+	struct list_head *lhcurrent = NULL;
+
+	lhcurrent = list_first(&freequeue);
+	list_del(lhcurrent);
+	
+	union task_union *new_thread;
+	new_thread = (union task_union*) list_head_to_task_struct(lhcurrent);
+	copy_data(current(), new_thread, sizeof(union task_union));
+
+	struct task_struct *main_thread = current()->main_thread;
+        page_table_entry *process_PT = get_PT(&new_thread->task);
+	int pages_needed = (stack_size + PAGE_SIZE - 1) / PAGE_SIZE;
+	int first_st_pg = find_free_stack_region(process_PT, USED_REGION+1, pages_needed, main_thread);
+	if (first_st_pg < 0) {
+		list_add_tail(lhcurrent, &freequeue);
+		return -ENOMEM;
+	}
+
+	for (int pag = 0; pag < pages_needed; pag++) {
+		int new_pag = alloc_frame();
+		if (new_pag != -1)
+			set_ss_pag(process_PT, first_st_pg+pag, new_pag);
+		else {
+			for (int i = 0; i < pag; i++) {
+			   free_frame(get_frame(process_PT, first_st_pg+i));
+			   del_ss_pag(process_PT, first_st_pg+i);
+			}
+			list_add_tail(lhcurrent, &freequeue);
+			return -EAGAIN;
 		}
 	}
 
-	/*
-	 * Ya tenemos memoria reservada para el hijo.
-	 * Ahora tenemos que: 
-	 * 1. Compartir las paginas de codigo entre padre e hijo
-	 * 2. Compartir memoria del sistema (system code+data)
-	 * 3. Asignar al hijo sus propias paginas de datos y stack
-	 *
-	 * Creamos/accedemos la tabla de paginas del hijo, esta tabla de paginas
-	 * es accesible a través del campo "dis_pages_baseAddr" en el task_struct,
-	 * por eso le pasamos "->task", que es el task_struct del union "child".
-	 * Y tambien accedemos a la tabla de paginas del padre, para que el hijo herede
-	 * parte de sus memoria (la antes mencionada)
-	 */
-	page_table_entry *child_PT = get_PT(&child->task);
-	page_table_entry *parent_PT = get_PT(current());
 
-	/*
-	 * 2. Compartir memoria del sistema 
-	 *
-	 * Asignamos al hijo "child_PT" las mismas paginas que tiene el padre de kernel,
-	 * ya que todos los procesos comparten el Kernel.
-	 *
-	 * get_frame() obtiene la pagina fisica que usa el padre
-	 * set_ss_pag() pone la pagina fisica al Page Table del hijo   
-	 */
-	for (int i = 0; i  < NUM_PAG_KERNEL; i++) {
-		set_ss_pag(child_PT, i, get_frame(parent_PT, i));
+	new_thread->task.state = ST_READY;
+	new_thread->task.TID = main_thread->next_TID++;
+	new_thread->task.pause_time = 0;
+	new_thread->task.priority = 20;			//hereda la prioridad??
+	new_thread->task.first_stack_page = (void *) (first_st_pg << 12);
+	new_thread->task.user_stack_pages = pages_needed;
+	INIT_LIST_HEAD(&(new_thread->task.sibling));
+	INIT_LIST_HEAD(&(new_thread->task.my_threads));
+	
+
+	// El main_thread es el que controla los threads del proceso
+	list_add_tail(&(new_thread->task.sibling), &(main_thread->my_threads));
+
+	// Pila de usuario
+	unsigned int stack_top = (first_st_pg << 12) + stack_size;
+	unsigned int* user_esp = (unsigned int *)stack_top;
+
+	user_esp -= sizeof(Byte);
+	*(user_esp) = (unsigned int)param;
+	user_esp -= sizeof(Byte);
+	*(user_esp) = 0;
+
+	// Contexto hardware
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x02] = (unsigned long) user_esp;	// esp
+	((unsigned long *) KERNEL_ESP(new_thread))[-0x05] = (unsigned long) func;	// eip 
+
+	new_thread->task.register_esp = (unsigned long) &(new_thread->stack[KERNEL_STACK_SIZE - 0x12]); 
+
+	list_add_tail(&new_thread->task.list, &readyqueue);
+	return 0;
+
+}
+#define TAM_BUFFER 512
+
+int sys_write(int fd, char *buffer, int nbytes) {
+	char localbuffer [TAM_BUFFER];
+	int bytes_left;
+	int ret;
+
+	if ((ret = check_fd(fd, ESCRIPTURA)))
+		return ret;
+	if (nbytes < 0)
+		return -EINVAL;
+	if (!access_ok(VERIFY_READ, buffer, nbytes))
+		return -EFAULT;
+	
+	bytes_left = nbytes;
+	while (bytes_left > TAM_BUFFER) {
+		copy_from_user(buffer, localbuffer, TAM_BUFFER);
+		ret = sys_write_console(localbuffer, TAM_BUFFER);
+		bytes_left-=ret;
+		buffer+=ret;
 	}
-	
-	/*
-	 * 1. Compartir las paginas de codigo entre padre e hijo
-	 *
-	 * Como el codigo es de solo lectura, compartimos las paginas del padre al hijo
-	 * y no las copiamos.
-	 */
-	for (int i = 0; i < NUM_PAG_CODE; i++) {
-		set_ss_pag(child_PT, PAG_LOG_INIT_CODE + i, get_frame(parent_PT, PAG_LOG_INIT_CODE+i));
+	if (bytes_left > 0) {
+		copy_from_user(buffer, localbuffer,bytes_left);
+		ret = sys_write_console(localbuffer, bytes_left);
+		bytes_left-=ret;
 	}
-	
-	/* 
-	 * 3. Asignar al hijo sus propias paginas de datos y stack
-	 *
-	 * Ahora las paginas logicas de datos + stack estan mapeadas a las 
-	 * paginas fisicas que hemos reservado antes, "npages[]" 
-	 */
-	for (int i = 0; i < NUM_PAG_DATA; ++i) {
-		set_ss_pag(child_PT, PAG_LOG_INIT_DATA + i, npages[i]);
-	}
-
-	/*
-	 * Falta copiar la data+stack del padre al hijo.
-	 * Para ello hacemos que el padre pueda ver temporalmente la memoria del hijo.
-	 *
-	 * set_ss_pag(TP, PAG_LOG, PAG_FIS) asigna 'temporalmente' las paginas del hijo a la
-	 * TP del padre
-	 * copy_data() copia los datos. 
-	 * - Cada pagina mide 4KB (2¹² bytes)
-	 * - "i" representa el numero de pagina
-	 * - Necesitamos una @ de memoria, hacemos shift a la izquierda (multiplica)
-	 * - si "i" = 1 -> @real: 0x00001000  
-	 * del_ss_pag() borra la pagina del hijo de la TP del padre, por eso 'temporalmente' 
-	 */
-	int FREE_SPACE = NUM_PAG_DATA + NUM_PAG_CODE;
-	int TOTAL_SPACE = NUM_PAG_KERNEL + NUM_PAG_DATA;
-
-	for (int i = NUM_PAG_KERNEL; i < TOTAL_SPACE; i++) {
-		set_ss_pag(parent_PT, i + FREE_SPACE, get_frame(child_PT, i));
-		copy_data((void *) (i << 12), (void*)((i + FREE_SPACE) << 12), PAGE_SIZE);
-		del_ss_pag(parent_PT, i + FREE_SPACE);
-	}
-	
-	/*
-	 * Forzamos un flush de TLB del padre, nos aseguramos de que no pueda acceder a la
-	 * memoria del hijo
-	 */
-	set_cr3(get_DIR(current()));
-	
-	/*
-	 * PID unico asignado al hijo
-	 */
-	child->task.PID = ++globalpid;
-
-	/*
-	 * Preparamos la pila del hijo para "task_switch()"
-	 *
-	 * Cuando se cambie de tarea el sistema tiene que poder restaurar el estado del hijo
-	 * correctamente y que el hijo pueda seguir ejecutandose como 'antes' (ya sabemos que
-	 * el hijo acaba de spawnear y no se estaba ejecutando pero "task_switch()" siempre 
-	 * cree que los procesos se estaban ejecutando anteriormente y trabaja con esa premisa
-	 * , asi que, hay que simular la previa ejecucion del hijo)
-	 *
-	 * Para eso:
-	 * 1. EBP debe tener algun valor, igual que en idle, ponemos 0. 
-	 * 2. Hay que poner un @ de retorno en su pila, ret_from_fork.
-	 * 3. kernel_esp apuntara al inicio de la pila, donde esta esperando" task_switch()". 
-	 *
-	 * Para verlo más claro, mirar Fig. 25, pág 54, de Zeos.pdf
-	 */
-
-	/*
-	 * Pila que vera "task_switch":
-	 * ________
-	 * ebp (0) 
-	 * ________ 0x13
-	 * @ret_from_fork
-	 * ________ 0x12
-	 * @handler  
-	 * ________ 0x11
-	 * CTX SW (11 regs)
-	 * ________ 0x05
-	 * CTX HW (5 regs)
-	 * ________ 0x00
-	 *
-	 * En -0x13 pondremos el valor del EBP y en -0x12 el valor de @ret_from_fork
-	 */
+	return (nbytes-bytes_left);
+}
 
 
-	// 1.
-	((unsigned long *)KERNEL_ESP(child))[-0x13] = (unsigned long) 0;
+extern int zeos_ticks;
 
-	// 2.
-	((unsigned long *)KERNEL_ESP(child))[-0x12] = (unsigned long)&ret_from_fork;
-	
-	// 3.
-	child->task.kernel_esp = &((unsigned long *)KERNEL_ESP(child))[-0x13];
-
-	child->task.pending_unblocks = 0;
-	INIT_LIST_HEAD(&(child->task.children_blocked));
-	INIT_LIST_HEAD(&(child->task.children_unblocked));
-	INIT_LIST_HEAD(&(child->task.sibling));
-	child->task.parent = current();
-
-	list_add_tail(&(child->task.sibling), &(current()->children_unblocked));
-
-	/*
-	 * Por ultimo, añadimos child a readyqueue para que pueda ser ejecutado por la CPU
-	 * y devolvemos el PID del hijo
-	 */
-	list_add_tail(&(child->task.list), &readyqueue);
-	return child->task.PID;
+int sys_gettime()
+{
+  return zeos_ticks;
 }
 
 void sys_exit()
 {  
+  int i;
+
+  page_table_entry *process_PT = get_PT(current());
+
+  // Deallocate all the propietary physical pages
+  for (i=0; i<NUM_PAG_DATA; i++)
+  {
+    free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
+    del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+  }
+ 
+
+
+  /* Free task_struct */
+  list_add_tail(&(current()->list), &freequeue);
+ 
+
+  current()->PID=-1;
+  current()->TID=-1;
+  current()->dir_pages_baseAddr=NULL;
+  /* Restarts execution of the next process */
+  sched_next_rr();
+}
+
+/* System call to force a task switch */
+int sys_yield()
+{
+  force_task_switch();
+  return 0;
+}
+
+extern int remaining_quantum;
+
+int sys_get_stats(int pid, struct stats *st)
+{
+  int i;
+  
+  if (!access_ok(VERIFY_WRITE, st, sizeof(struct stats))) return -EFAULT; 
+  
+  if (pid<0) return -EINVAL;
+  for (i=0; i<NR_TASKS; i++)
+  {
+    if (task[i].task.PID==pid)
+    {
+      task[i].task.p_stats.remaining_ticks=remaining_quantum;
+      copy_to_user(&(task[i].task.p_stats), st, sizeof(struct stats));
+      return 0;
+    }
+  }
+  return -ESRCH; /*ESRCH */
+}
+
+int sys_GetKeyboardState(char *keyboard) {
+
+	if (!access_ok(VERIFY_WRITE,keyboard, 128)) return -EFAULT;
+	
+	copy_to_user(keys, keyboard, 128);
+	
+	return 0;
+}
+
+int sys_pause(int miliseconds) {
+	
+	if (miliseconds < 0) return -EINVAL;
+
+	current()->pause_time = miliseconds*0.018;
+	update_process_state_rr(current(), &blocked);
+	sched_next_rr();
+
+	return 0;
+}
+
+void* sys_StartScreen() {
+	
+	if(current()->screen_page != (void*)-1) {
+		return current()->screen_page;
+	}
+
+	int frame = alloc_frame();
+	if (frame < 0) return (void*) -EAGAIN;
+
+	page_table_entry* tp = get_PT(current());
+	set_ss_pag(tp, USED_REGION, frame);
+
+	current()->screen_page = (void*)((USED_REGION)* PAGE_SIZE);
+	return (void*)(current()->screen_page);
+}
+
+int sys_SetPriority(int priority) {
+
+	if (priority < 0 || priority > MAX_PRIORITY)
+		return -EINVAL;
+
+	current()->priority = priority;
+	return 0;
+}
+
+int sys_pthread_exit() {
 	struct task_struct *ts = current();
+	// Si es el thread principal y aun quedan threads disponibles no puede ser eliminado
+	if (ts->main_thread == ts && !list_empty(&ts->my_threads)) {
+		return -1;
+	}
+	list_del(&ts->sibling);
 
-	// Si NO es idle, nos eliminamos de la lista de hijos del padre
-	if (ts->parent != NULL) list_del(&ts->sibling);
+	page_table_entry *pt = get_PT(ts);
+	unsigned int first_addr = (unsigned int) ts->first_stack_page;
+	int first_page = first_addr >> 12;
+	int last_page = first_page + ts->user_stack_pages - 1;
 
-	struct list_head *pos, *tmp;
-	list_for_each_safe(pos, tmp, &ts->children_unblocked) {
-		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
-		list_del(pos);
-		list_add_tail(&child->sibling, &idle_task->children_unblocked);
-		child->parent = idle_task;
+	for (int page = first_page; page <= last_page; ++page) {
+    		free_frame(get_frame(pt, page));
+    		del_ss_pag(pt, page);
 	}
 
-	list_for_each_safe(pos, tmp, &ts->children_blocked) {
-		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
-		list_del(pos);
-		list_add_tail(&child->sibling, &idle_task->children_blocked);
-		child->parent = idle_task;
-	}
 
-	page_table_entry *PT = get_PT(ts);
-	int TOTAL = PAG_LOG_INIT_DATA + NUM_PAG_DATA;
-	for (int i = PAG_LOG_INIT_DATA; i < TOTAL; ++i) {
-		free_frame(get_frame(PT, i));
-		del_ss_pag(PT, i);
-	}
-
-	ts->PID = -1;
-	ts->dir_pages_baseAddr = NULL;
+	ts->PID=-1;
+	ts->TID=-1;
 	update_process_state_rr(ts, &freequeue);
 	sched_next_rr();
-}
 
-void sys_block() {
-	struct task_struct *ts = current();
-	if (ts->pending_unblocks > 0) {
-		ts->pending_unblocks--;
-		return;
-	}
-	
-	struct task_struct *parent = ts->parent;
-	if (parent != NULL) {
-		list_del(&ts->sibling);				// Lo sacamos de la lista unblocked
-		list_add_tail(&ts->sibling, &parent->children_blocked);
-
-	}
-
-	update_process_state_rr(ts, &blocked);
-	sched_next_rr();
-}
-
-int sys_unblock(int pid) {
-	struct task_struct *parent = current();
-	struct list_head *pos;
-
-	list_for_each(pos, &parent->children_blocked) {
-		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
-		if (child->PID == pid) {
-			list_del(&child->sibling);
-			list_add_tail(&child->sibling, &parent->children_unblocked);
-			update_process_state_rr(child, &readyqueue);
-			return 0;
-		}
-	}
-
-	list_for_each(pos, &parent->children_unblocked) {
-		struct task_struct *child = list_entry(pos, struct task_struct, sibling);
-		if (child->PID == pid) {
-			child->pending_unblocks++;
-			return 0;
-		}
-	}
-	return -1;
-}
-
-#define BUFF_SIZE 256
-char buffer_sys[BUFF_SIZE];
-
-int sys_write(int fd, char *buffer, int size) {
-  //Comprova el canal.
-  int ret = check_fd(fd, ESCRIPTURA);
-  if (ret < 0) return ret;
-
-  //Comprova buffer.
-  if(buffer == NULL) return -EFAULT;  /* Bad address */
-
-  //Comprova size.
-  if (size < 0 || !access_ok(VERIFY_READ, buffer, size)) return -EINVAL;   /* Invalid argument */
-
-  int toWrite = size;         //Bytes que falten per escriure.
-  char *newPointer = buffer;  //Punter auxiliar per apuntar a la zona del buffer on comencarem a escriure en cada iteracio.
-
-  //Si no cap tot string en el buffer va poc a poc.
-  while (toWrite > BUFF_SIZE) {
-    copy_from_user(newPointer, buffer_sys, BUFF_SIZE);
-    int bytes_written = sys_write_console(newPointer, BUFF_SIZE);
-
-    newPointer += bytes_written;
-    toWrite -= bytes_written;
-  }
-
-  //Quan ja cap tot el que queda del string al buffer escriu fins al final del string.
-  copy_from_user(newPointer, buffer_sys, toWrite);
-  int bytes_written = sys_write_console(newPointer, toWrite);
-
-  toWrite -= bytes_written;
-
-  //Retorna el N de bytes escrits, en principi = size pero por si acaso.
-  return size - toWrite;
-}
-
-int sys_gettime() {
-  return zeos_ticks;
+	return 0;
 }

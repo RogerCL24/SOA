@@ -6,9 +6,8 @@
 
 #include <types.h>
 
-#include <errno.h>
-
-int errno = 0;
+int errno;
+int REGS[7]; // Space to save REGISTERS
 
 void itoa(int a, char *b)
 {
@@ -45,44 +44,11 @@ int strlen(char *a)
   return i;
 }
 
-void perror() {
-  write(1, "perror: ", 8);
-  switch (errno)
-  {
-    case EBADF:
-      write(1, "Bad file number\n", 16);
-      break;
+void perror()
+{
+  char buffer[256];
 
-    case EACCES:
-      write(1, "Permission denied\n", 18);
-      break;
-    
-    case ENOSYS:
-      write(1, "Syscall not implemented\n", 24);
-      break;
+  itoa(errno, buffer);
 
-    case EFAULT:
-      write(1, "Bad address\n", 12);
-      break;
-    
-    case EINVAL:
-      write(1, "Invalid argument\n", 17);
-      break;
-
-    case ENOMEM:
-      write(1, "Out of memory\n", 14);
-      break;
-    
-    case 0:
-    write(1, "No known errors\n", 16);
-    break;
-    
-    default:
-      char buff[4];
-      itoa(errno, buff);
-      write(1, "Message for error ", 18);
-      write(1, buff, strlen(buff));
-      write(1, " not found\n", 11);
-      break;
-  }
+  write(1, buffer, strlen(buffer));
 }
