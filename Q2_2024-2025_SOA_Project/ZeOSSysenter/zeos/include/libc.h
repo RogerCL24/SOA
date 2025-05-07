@@ -8,15 +8,17 @@
 
 #include <stats.h>
 
-extern int errno;
-
 int write(int fd, char *buffer, int size);
+int fast_write(int fd, char *buffer, int size);
+
+int gettime();
+int fast_gettime();
 
 void itoa(int a, char *b);
 
-int strlen(char *a);
-
 void perror();
+
+int strlen(char *a);
 
 int getpid();
 
@@ -24,19 +26,7 @@ int fork();
 
 void exit();
 
-int yield();
+void block();
 
-int get_stats(int pid, struct stats *st);
-
-int GetKeyboardState(char* keyboard);
-
-int pause(int miliseconds);
-
-void* StartScreen();
-
-int clone(int what, void *(*func)(void*), void *param, int stack_size);
-
-int SetPriority(int priority);
-
-int pthread_exit();
+int unblock(int pid);
 #endif  /* __LIBC_H__ */

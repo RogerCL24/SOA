@@ -1,11 +1,11 @@
-#ifndef __ZEOS_ERRNO_H__
-#define __ZEOS_ERRNO_H__
+#ifndef _ERRNO_H_
+#define _ERRNO_H_
 
 #define EPERM        1  /* Operation not permitted */
 #define ENOENT       2  /* No such file or directory */
 #define ESRCH        3  /* No such process */
 #define EINTR        4  /* Interrupted system call */
-#define EIO      5  /* I/O error */
+#define EIO          5  /* I/O error */
 #define ENXIO        6  /* No such device or address */
 #define E2BIG        7  /* Argument list too long */
 #define ENOEXEC      8  /* Exec format error */
@@ -135,5 +135,4 @@
 #define EKEYREVOKED 128 /* Key has been revoked */
 #define EKEYREJECTED    129 /* Key was rejected by service */
 
-#endif
-
+#endif //_ERRNO_H_

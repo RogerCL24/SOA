@@ -13,6 +13,4 @@ int access_ok(int type, const void *addr, unsigned long size);
 
 unsigned long get_ticks(void);
 
-void memset(void *s, unsigned char c, int size);
-void itoa_hexa(int num, char *buff);
 #endif
