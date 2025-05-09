@@ -121,10 +121,10 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue)
       update_stats(&(t->p_stats.system_ticks), &(t->p_stats.elapsed_total_ticks));
       t->state=ST_READY;
 
-      if (t->priority > current()->priority) {	
+      /*if (t->priority > current()->priority) {	
 	if (current() != idle_task) update_process_state_rr(current(), &readyqueue); 
 	sched_next_rr();
-      }
+      }*/
     }
   }
   else t->state=ST_RUN;

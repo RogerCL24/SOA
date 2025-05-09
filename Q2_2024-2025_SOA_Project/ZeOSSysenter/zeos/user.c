@@ -32,10 +32,9 @@ void *thread_func_1(void *arg) {
 void test_simple_clone() {
     int val = 1;
     int tid = clone(CLONE_THREAD, thread_func_1, &val, 1024);
-    if (tid < 0) {
-	write(1, "clone failed\n", 13);
-    	perror();
-    }
+    if (tid < 0)  write(1, "clone failed\n", 13);
+    
+
     pause(50);
     write(1, "Done boss\n", 10);
 }
@@ -138,8 +137,65 @@ void *son_thread(void *arg) {
     write(1, "THREAD RUNNING\n", 15);
     pause(500); 
 
+    test_simple_clone();
     pthread_exit();
 }
+
+void *forking(void *arg) {
+	
+        int val = *((int*)arg); //el thread al llegar aqui tiene el puntero apuntando a un valor != 1  
+	int pid = fork();
+	if (pid > 0) {
+		write(1, "Cloned and forked!\n",20);
+	}
+	else if (pid == 0){
+		write(1, "My father is a clone...\n",25);  // 2.
+		if (val == 1) write(1,"YES\n",4);
+	}
+	else write(1,"ERROR\n",6);
+	pthread_exit();
+}
+
+void test_clone_and_fork() {
+    
+   int val = 1;
+   int ret = clone(CLONE_THREAD, forking, &val, 8192);  
+   if (ret == 0) write(1, "Cloned succesfully, forking?\n", 30);
+}
+
+void test_exit_from_main() {
+    int pid = fork();
+    if (pid == 0) {
+        write(1, "CHILD: I will now call exit from main thread\n", 45);
+        exit(); // Debería terminar el proceso entero 1.
+    } else {
+        pause(100);
+        write(1, "PARENT: If I see this, child exited correctly\n", 46);
+    }
+}
+
+void *killer_thread(void *arg) {
+    write(1, "THREAD: Calling exit from a thread!\n", 35);
+    exit(); // Deberia matar a todo el proceso
+    return 0;
+}
+
+void test_exit_from_thread() {
+    int pid = fork();
+    if (pid == 0) {
+        int val = 0;
+        int ret = clone(CLONE_THREAD, killer_thread, &val, 4096);
+        if (ret < 0) perror();
+	pause(1);
+         write(1, "You cannot see me\n", 19);// No deberia llegar aqui, será matado por el thread
+    } else {
+        pause(200);
+        write(1, "PARENT: Child should have exited\n", 33);
+    }
+}
+
+
+
 
 int __attribute__ ((__section__(".text.main")))
   main(void)
@@ -151,18 +207,28 @@ int __attribute__ ((__section__(".text.main")))
 
   unsigned short* screen = (unsigned short*) StartScreen();
 
-   // test_simple_clone();
-   test_multiple_threads();
-   // test_priority();
+   	test_simple_clone();
+   	test_multiple_threads();
+        test_priority();
+
+	// thread hace fork
+      	test_clone_and_fork();
+	
 
 
-    int pid = fork();
+     int pid = fork();
     if (pid < 0) perror();
-    else if (pid > 0)
-	   draw_screen(screen);
+    else if (pid > 0) {
+	    // exit desde el thread principal
+	   test_exit_from_main();
+	   // exit desde thread secundario
+	   test_exit_from_thread();
+	    draw_screen(screen);
+    }
     else {
-	    // Hijo crea thread
-    	int ret = clone(CLONE_THREAD, son_thread, 0, 4096);
+	 // Hijo crea thread
+	int val = 0;
+    	int ret = clone(CLONE_THREAD, son_thread, &val, 4096);
 	if (ret < 0) perror();
 	while(1) {
 

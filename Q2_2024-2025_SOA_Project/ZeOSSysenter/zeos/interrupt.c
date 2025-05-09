@@ -46,15 +46,33 @@ void dumpScreen() {
 	}
 }
 
-void update_blocked_time() {
+int update_blocked_time() {
 	struct list_head *pos, *tmp;
+	struct task_struct *max_prio_proc = NULL;
+	int max_prio = current()->priority;
+
 	list_for_each_safe(pos, tmp, &blocked) {
 		struct task_struct *t = list_entry(pos, struct task_struct, list);
 		t->pause_time--;
 		if (t->pause_time <= 0) {
 			update_process_state_rr(t, &readyqueue);
+
+			if (t->priority > max_prio) {
+				max_prio_proc = t;
+				max_prio = t->priority;
+			}
 		}
 	}
+	if (max_prio_proc) {
+		if (current() != idle_task) {
+			update_process_state_rr(current(), &readyqueue);
+		}
+		sched_next_rr();
+		return 1;
+	
+	}
+
+	return 0;
 }
 
 void clock_routine()
@@ -62,11 +80,11 @@ void clock_routine()
   zeos_show_clock();
   zeos_ticks ++;
   
-  update_blocked_time();
+  int changed = update_blocked_time();
 	
   if (current()->PID != -1 && current()->screen_page != (void*)-1) dumpScreen();
 
-  schedule();
+  if(!changed) schedule();
 }
 
 void keyboard_routine()

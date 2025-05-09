@@ -1,5 +1,6 @@
 #include <utils.h>
 #include <types.h>
+#include <sched.h>
 
 #include <mm_address.h>
 
@@ -81,6 +82,22 @@ int access_ok(int type, const void * addr, unsigned long size)
       if ((addr_ini>=USER_FIRST_PAGE)&&
   	(addr_fin<=(USER_FIRST_PAGE+NUM_PAG_CODE+NUM_PAG_DATA)))
           return 1;
+
+      struct task_struct *main_thr = current()->main_thread;
+      unsigned int first_pg = (unsigned int)main_thr->first_stack_page >> 12;
+      unsigned int last_pg = first_pg + main_thr->user_stack_pages - 1;
+      if (addr_ini >= first_pg && addr_fin <= last_pg)
+          return 1;
+
+      struct list_head *pos;
+      struct task_struct *thr;
+      list_for_each(pos, &main_thr->my_threads) {
+          thr = list_entry(pos, struct task_struct, list);
+          first_pg = (unsigned int)thr->first_stack_page >> 12;
+          last_pg = first_pg + thr->user_stack_pages - 1;
+          if (addr_ini >= first_pg && addr_fin <= last_pg)
+              return 1;
+      }
   }
   return 0;
 }
