@@ -26,12 +26,35 @@ struct task_struct {
   struct stats p_stats;		/* Process stats */
   int pause_time;       //Temps que li queda a un procés blocked per desbloquejar
   void* screen_page;    //Punter a la direccio de la pagina compartida de la pantalla
+
+  //Caracteristiques afegides per fer threads
+  int TID;
+  int next_TID;
+  int nthreads;                       //Nombre de threads del procés
+  int priority;
+  void* first_stack_page;
+  int user_stack_pages;               //Numero de pagines del stack
+  struct task_struct* main_thread;    //Apunta al thread principal
+  struct list_head threads_list;      //Lista amb els threads del procés
+  struct list_head sibling;          //Enllaç del pare als fills (node per vincular a thread_list del main)
 };
 
 union task_union {
   struct task_struct task;
   unsigned long stack[KERNEL_STACK_SIZE];    /* pila de sistema, per procés */
 };
+
+//Struct dels semafors
+struct Semaphore {
+  int sem_id;     //id del semafor
+  int counter;    //Contador de threads que poden conviure al semafor
+  int owner;      //PID del procés que té el semafor
+  struct list_head queue;   //Cua de threads al semafor
+};
+
+//Vector amb tots els semafors del sistema
+#define NR_SEMAPHORES 30
+extern struct Semaphore semaphores[NR_SEMAPHORES];
 
 extern union task_union protected_tasks[NR_TASKS+2];
 extern union task_union *task; /* Vector de tasques */
@@ -78,5 +101,7 @@ int needs_sched_rr();
 void update_sched_data_rr();
 
 void init_stats(struct stats *s);
+
+void init_semaphores();
 
 #endif  /* __SCHED_H__ */

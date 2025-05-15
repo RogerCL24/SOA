@@ -67,8 +67,11 @@ nok:
 .globl fork; .type fork, @function; .align 0; fork:
  pushl %ebp
  movl %esp, %ebp
+ pushl %ebx
+ xorl %ebx, %ebx
  movl $2, %eax
  call syscall_sysenter
+ popl %ebx
  test %eax, %eax
  js nok
  popl %ebp
@@ -138,6 +141,100 @@ nok:
  movl %esp, %ebp
  pushl %ebx;
  movl $7, %eax
+ call syscall_sysenter
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+.globl clone; .type clone, @function; .align 0; clone:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx
+ pushl %esi
+ movl $2 ,%eax
+ movl 0x8(%ebp), %ebx
+ movl 0xC(%ebp), %ecx
+ movl 0x10(%ebp), %edx
+ movl 0x14(%ebp), %esi
+ call syscall_sysenter
+ popl %esi
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+.globl SetPriority; .type SetPriority, @function; .align 0; SetPriority:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx
+ movl 0x8(%ebp), %ebx
+ movl $8, %eax
+ call syscall_sysenter
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+.globl pthread_exit; .type pthread_exit, @function; .align 0; pthread_exit:
+ pushl %ebp
+ movl %esp, %ebp
+ movl $9, %eax
+ call syscall_sysenter
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+
+.globl sem_init; .type sem_init, @function; .align 0; sem_init:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx
+ movl 0x8(%ebp), %ebx
+ movl $14, %eax
+ call syscall_sysenter
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+.globl sem_wait; .type sem_wait, @function; .align 0; sem_wait:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx
+ movl 0x8(%ebp), %ebx
+ movl $15, %eax
+ call syscall_sysenter
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+.globl sem_post; .type sem_post, @function; .align 0; sem_post:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx
+ movl 0x8(%ebp), %ebx
+ movl $16, %eax
+ call syscall_sysenter
+ popl %ebx
+ test %eax, %eax
+ js nok
+ popl %ebp
+ ret
+
+.globl sem_destroy; .type sem_destroy, @function; .align 0; sem_destroy:
+ pushl %ebp
+ movl %esp, %ebp
+ pushl %ebx
+ movl 0x8(%ebp), %ebx
+ movl $17, %eax
  call syscall_sysenter
  popl %ebx
  test %eax, %eax

@@ -38,15 +38,35 @@ int zeos_ticks = 0;
 
 extern struct list_head blocked;
 extern struct list_head readyqueue;
-void update_blocked_time() {
+int update_blocked_time() {
+  //Guardarem quin es el procés de més prioritat dels que es desbloquejen
+  struct task_struct *max_prio_proc = NULL;
+	int max_prio = current()->priority;
+
   struct list_head *pos, *tmp;    
   list_for_each_safe(pos, tmp, &blocked) {
     struct task_struct *t= list_entry(pos, struct task_struct, list);
     t->pause_time--;
     if (t->pause_time <= 0) {
       update_process_state_rr(t, &readyqueue);
+
+      //Si la prioritat es la maxima dels procéssos que es desbloquejen es guarda a la variable
+      if (t->priority > max_prio) {
+				max_prio_proc = t;
+				max_prio = t->priority;
+			}
     }
   }
+  //En afegir ara el prcés de màxima prioritat, aquest serà el primer a la cua (Crec q no es necessari tot això de max_prio)
+  if (max_prio_proc) {
+		if (current() != idle_task) {
+			update_process_state_rr(current(), &readyqueue);
+		}
+		sched_next_rr();
+		return 1;
+	}
+
+	return 0;
 }
 
 void dumpScreen() {
@@ -65,13 +85,13 @@ void clock_routine()
   zeos_ticks ++;
   
   //Per gestió Keyboard
-  update_blocked_time();
+  int changed = update_blocked_time();
 
   //Per gestió pantalla
     //La primera entrada a clock_routine encara no estem executant init (Això feia que screen_page no estigués inicialitzat) -> Solucio?
   if (current()->PID != -1 && current()->screen_page != (void*)-1) dumpScreen();
 
-  schedule();
+  if (!changed) schedule();
 }
 
 void keyboard_routine()

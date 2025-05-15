@@ -125,17 +125,21 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue)
 
 void sched_next_rr(void)
 {
-  struct list_head *e;
-  struct task_struct *t;
+  struct list_head *e, *best_prio_e = NULL;
+  struct task_struct *t, *best_prio_t = NULL;
 
   if (!list_empty(&readyqueue)) {
-	e = list_first(&readyqueue);
-    list_del(e);
-
-    t=list_head_to_task_struct(e);
+    list_for_each(e, &readyqueue) {
+      t = list_head_to_task_struct(e);
+      if (!best_prio_t || t->priority > best_prio_t->priority) {
+        best_prio_t = t;
+        best_prio_e = e;
+      }
+    }
+    list_del(best_prio_e);
+    t = best_prio_t;
   }
-  else
-    t=idle_task;
+  else t=idle_task;
 
   t->state=ST_RUN;
   remaining_quantum=get_quantum(t);
@@ -152,7 +156,7 @@ void schedule()
   update_sched_data_rr();
   if (needs_sched_rr())
   {
-    update_process_state_rr(current(), &readyqueue);
+    if (current() != idle_task) update_process_state_rr(current(), &readyqueue);
     sched_next_rr();
   }
 }
@@ -171,6 +175,12 @@ void init_idle (void)
   init_stats(&c->p_stats);
 
   c->screen_page = (void*)-1;
+  c->priority = 20;
+  c->TID=1;
+  c->main_thread = c;
+  INIT_LIST_HEAD(&c->threads_list);
+  INIT_LIST_HEAD(&c->sibling);
+  allocate_DIR(c);
 
   allocate_DIR(c);
 
@@ -192,15 +202,18 @@ void init_task1(void)
   union task_union *uc = (union task_union*)c;
 
   c->PID=1;
-
   c->total_quantum=DEFAULT_QUANTUM;
-
   c->state=ST_RUN;
-
   c->pause_time = 0;
-
   c->screen_page = (void*)-1;
-
+  c->priority = 20;
+  c->TID = 1; 
+  c->next_TID = 2;
+  c->main_thread=c;
+  c->user_stack_pages = 0;
+  c->first_stack_page = NULL;
+  INIT_LIST_HEAD(&c->threads_list);
+  INIT_LIST_HEAD(&c->sibling);
   remaining_quantum=c->total_quantum;
 
   init_stats(&c->p_stats);
@@ -238,6 +251,9 @@ void init_sched()
 
   //Inicialització del vector keys
   for (int i = 0; i < 128; ++i) keys[i] = 0;
+
+  //Inicialització del vector de semafors
+  init_semaphores();
 }
 
 struct task_struct* current()
@@ -274,4 +290,12 @@ void force_task_switch()
   update_process_state_rr(current(), &readyqueue);
 
   sched_next_rr();
+}
+
+void init_semaphores() {
+  for (int i = 0; i < NR_SEMAPHORES; ++i) {
+    semaphores[i].sem_id = -1;
+    semaphores[i].counter = 0;
+    semaphores[i].owner = -1;
+  }
 }
