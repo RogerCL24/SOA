@@ -81,7 +81,7 @@ void dumpScreen() {
 
 void clock_routine()
 {
-  zeos_show_clock();
+  //zeos_show_clock();
   zeos_ticks ++;
   
   //Per gestió Keyboard

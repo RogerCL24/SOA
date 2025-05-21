@@ -16,6 +16,22 @@
 
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
 
+//Struct dels semafors
+struct Semaphore {
+  int sem_id;     //id del semafor -> S'utilitza per saber si s'ha inicialitzat
+  int counter;    //Contador de threads que poden conviure al semafor
+  struct list_head queue;   //Cua de threads al semafor
+};
+
+#define NR_SEMAPHORES 20
+//Struct qe ues un vector de semafors i el pid del propietari del vector
+struct SemaphoreVector {
+  int owner;    //owner del Vector
+  struct Semaphore sem[NR_SEMAPHORES];
+};
+
+extern struct SemaphoreVector semaphores[NR_TASKS];
+
 struct task_struct {
   int PID;			/* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
@@ -37,24 +53,14 @@ struct task_struct {
   struct task_struct* main_thread;    //Apunta al thread principal
   struct list_head threads_list;      //Lista amb els threads del procés
   struct list_head sibling;          //Enllaç del pare als fills (node per vincular a thread_list del main)
+
+  struct SemaphoreVector *p_semaphores;   //Vector de semafors d'un proces
 };
 
 union task_union {
   struct task_struct task;
   unsigned long stack[KERNEL_STACK_SIZE];    /* pila de sistema, per procés */
 };
-
-//Struct dels semafors
-struct Semaphore {
-  int sem_id;     //id del semafor
-  int counter;    //Contador de threads que poden conviure al semafor
-  int owner;      //PID del procés que té el semafor
-  struct list_head queue;   //Cua de threads al semafor
-};
-
-//Vector amb tots els semafors del sistema
-#define NR_SEMAPHORES 30
-extern struct Semaphore semaphores[NR_SEMAPHORES];
 
 extern union task_union protected_tasks[NR_TASKS+2];
 extern union task_union *task; /* Vector de tasques */
